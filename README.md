@@ -47,7 +47,7 @@ Not built yet: email or SMS reminders, push notifications, chat, payments.
 ## Deploy (Vercel)
 
 Import this repo in Vercel. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `NEXT_PUBLIC_SITE_URL` (the live domain, used for Open Graph links).
-For plans from links, also add `ANTHROPIC_API_KEY` (server-only) and `GEOCODER_CONTACT_EMAIL`. Map tiles (CARTO, on OpenStreetMap data) need no key.
+For plans from links, also add `ANTHROPIC_API_KEY` (server-only) and `GEOCODER_CONTACT_EMAIL`. Map tiles come from OpenStreetMap (no key), darkened in CSS. To use another tile provider, set `NEXT_PUBLIC_MAP_TILE_URL` and `NEXT_PUBLIC_MAP_ATTRIBUTION`.
 
 ## Placeholders to fill
 

@@ -3,7 +3,7 @@
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { useEffect, useRef } from "react";
-import { TILE_ATTRIBUTION, TILE_URL, pinIcon } from "@/components/app/map/tiles";
+import { TILE_OPTIONS, TILE_URL, pinIcon } from "@/components/app/map/tiles";
 import { categoryOf } from "@/lib/app/categories";
 
 /** A still map with one pin, for a plan page. */
@@ -13,7 +13,7 @@ export default function MiniMap({ lat, lng, kind, label }: { lat: number; lng: n
     if (!box.current) return;
     const c = categoryOf(kind);
     const m = L.map(box.current, { zoomControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false }).setView([lat, lng], 15);
-    L.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(m);
+    L.tileLayer(TILE_URL, TILE_OPTIONS).addTo(m);
     L.marker([lat, lng], { icon: pinIcon(c.color, c.ink, true), interactive: false }).addTo(m);
     return () => {
       m.remove();

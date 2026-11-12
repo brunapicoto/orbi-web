@@ -3,7 +3,7 @@
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { useEffect, useRef } from "react";
-import { NYC, TILE_ATTRIBUTION, TILE_URL, pinIcon } from "@/components/app/map/tiles";
+import { NYC, TILE_OPTIONS, TILE_URL, pinIcon } from "@/components/app/map/tiles";
 import { categoryOf } from "@/lib/app/categories";
 
 export type MapPlan = { id: string; lat: number; lng: number; kind: string; label: string };
@@ -27,7 +27,7 @@ export default function PlansMap({ plans, selected, onSelect, onMove, fitKey }: 
   useEffect(() => {
     if (!box.current || map.current) return;
     const m = L.map(box.current, { zoomControl: false }).setView(NYC, 12);
-    L.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(m);
+    L.tileLayer(TILE_URL, TILE_OPTIONS).addTo(m);
     L.control.zoom({ position: "topright" }).addTo(m);
     layer.current = L.layerGroup().addTo(m);
     const report = () => {

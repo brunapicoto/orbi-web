@@ -1,8 +1,15 @@
 import L from "leaflet";
 
-// CARTO's dark basemap on OpenStreetMap data: free, no key. Attribution is required.
-export const TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-export const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+// Map tiles. Default: OpenStreetMap's own tiles (no key), darkened with a CSS filter to match the app.
+// To use another provider later (e.g. a dark style with a key), set NEXT_PUBLIC_MAP_TILE_URL and
+// NEXT_PUBLIC_MAP_ATTRIBUTION; those are drawn as they are, with no filter.
+const CUSTOM = process.env.NEXT_PUBLIC_MAP_TILE_URL;
+export const TILE_URL = CUSTOM || "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+export const TILE_ATTRIBUTION = CUSTOM
+  ? process.env.NEXT_PUBLIC_MAP_ATTRIBUTION || ""
+  : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+/** options for every tile layer: the dark filter only applies to the default tiles */
+export const TILE_OPTIONS = { attribution: TILE_ATTRIBUTION, maxZoom: 19, className: CUSTOM ? "" : "orbi-tiles-dark" };
 export const NYC: [number, number] = [40.7357, -73.9772];
 
 /** A drawn pin in a category colour. Plain markup, no images, so nothing breaks in the bundle. */

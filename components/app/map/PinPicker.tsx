@@ -3,7 +3,7 @@
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { useEffect, useRef } from "react";
-import { NYC, TILE_ATTRIBUTION, TILE_URL, pinIcon } from "@/components/app/map/tiles";
+import { NYC, TILE_OPTIONS, TILE_URL, pinIcon } from "@/components/app/map/tiles";
 
 /** A small map with one draggable pin. Tap the map or drag the pin to move it. */
 export default function PinPicker({ lat, lng, onChange }: { lat: number | null; lng: number | null; onChange: (lat: number, lng: number) => void }) {
@@ -16,7 +16,7 @@ export default function PinPicker({ lat, lng, onChange }: { lat: number | null; 
   useEffect(() => {
     if (!box.current || map.current) return;
     const m = L.map(box.current, { zoomControl: false, attributionControl: true, scrollWheelZoom: false }).setView(NYC, 12);
-    L.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(m);
+    L.tileLayer(TILE_URL, TILE_OPTIONS).addTo(m);
     L.control.zoom({ position: "bottomright" }).addTo(m);
     m.on("click", (e: L.LeafletMouseEvent) => change.current(e.latlng.lat, e.latlng.lng));
     map.current = m;

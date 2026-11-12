@@ -128,6 +128,10 @@ body {
   background: #1a1618;
   font-family: var(--font-plex-mono), monospace;
 }
+/* openstreetmap's light tiles, turned dark and quiet */
+.orbi-tiles-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.92) saturate(0.35);
+}
 .orbi-pin {
   background: none;
   border: 0;
