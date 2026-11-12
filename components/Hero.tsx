@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from "framer-motion";
+import { motion, useScroll, useTransform, type MotionValue } from "framer-motion";
 import { useRef } from "react";
 import { OrbitDial } from "@/components/OrbitDial";
 import { CafeArt, DinnerArt } from "@/components/SceneArt";
@@ -15,16 +15,16 @@ export type SceneSlot = { file: string; label: string; alt: string; available: b
  */
 export function Hero({ scenes }: { scenes: [SceneSlot, SceneSlot] }) {
   const ref = useRef<HTMLDivElement>(null);
-  const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
   const left = useTransform(scrollYProgress, [0, 1], ["102vh", "16vh"]);
   const mid = useTransform(scrollYProgress, [0, 1], ["128vh", "6vh"]);
   const right = useTransform(scrollYProgress, [0, 1], ["112vh", "24vh"]);
   const textScale = useTransform(scrollYProgress, [0, 1], [1, 0.94]);
 
-  const statement = (
+  // rendered in both layouts (only one is visible); only the first copy carries the id
+  const statement = (withId: boolean) => (
     <div className="flex w-full flex-col items-start gap-7 text-left">
-      <h1 id="hero-title" className="display text-[clamp(120px,26vw,300px)] leading-[0.8] tracking-[-0.06em] text-lavender">
+      <h1 id={withId ? "hero-title" : undefined} className="display text-[clamp(120px,min(26vw,32vh),300px)] leading-[0.8] tracking-[-0.06em] text-lavender">
         orbi
       </h1>
       <p className="display max-w-[14ch] text-[clamp(1.9rem,4.4vw,3.25rem)] text-bone">from mutuals to real connections.</p>
@@ -50,11 +50,11 @@ export function Hero({ scenes }: { scenes: [SceneSlot, SceneSlot] }) {
   return (
     <section id="top" aria-labelledby="hero-title" className="relative bg-bordeaux">
       {/* desktop, motion allowed: sticky statement with cards rising over it */}
-      {!reduce ? (
-        <div ref={ref} className="relative hidden h-[220vh] md:block">
-          <div className="gutter sticky top-0 flex h-screen items-center overflow-hidden">
+      {/* both layouts are always rendered; CSS picks one, so server and browser agree */}
+      <div ref={ref} className="hero-motion relative hidden h-[220vh] md:block">
+          <div className="gutter sticky top-0 flex h-screen items-start overflow-hidden pt-[clamp(120px,17vh,168px)]">
             <motion.div style={{ scale: textScale, transformOrigin: "0% 50%" }} className="mx-auto w-full max-w-6xl">
-              {statement}
+              {statement(true)}
             </motion.div>
             <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto grid h-screen w-full max-w-6xl grid-cols-3 gap-6 px-6">
               <Column y={left} className="mt-0">{cards[0]}</Column>
@@ -63,11 +63,10 @@ export function Hero({ scenes }: { scenes: [SceneSlot, SceneSlot] }) {
             </div>
           </div>
         </div>
-      ) : null}
 
       {/* phones and reduced motion: statement, then the cards in a grid */}
-      <div className={`gutter flex flex-col gap-14 pb-20 pt-32 ${reduce ? "" : "md:hidden"}`}>
-        <div className="mx-auto w-full max-w-6xl">{statement}</div>
+      <div className="hero-static gutter flex flex-col gap-14 pb-20 pt-32 md:hidden">
+        <div className="mx-auto w-full max-w-6xl">{statement(false)}</div>
         <div className="mx-auto grid w-full max-w-3xl grid-cols-2 gap-3 md:grid-cols-3 md:gap-6">
           <div className="col-span-2 md:col-span-1">{cards[1]}</div>
           {cards[0]}

@@ -107,6 +107,17 @@ body {
   html {
     scroll-behavior: auto;
   }
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  /* hero: no scroll-driven cards, the plain grid instead */
+  .hero-motion {
+    display: none !important;
+  }
+  .hero-static {
+    display: flex !important;
+  }
   .link-draw {
     transition: none;
   }

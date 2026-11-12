@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 
 type Props = {
   children: React.ReactNode;
@@ -9,16 +9,15 @@ type Props = {
   as?: "div" | "li" | "p" | "h2" | "span";
 };
 
-/** Fade and rise on scroll. Turned off for reduced motion. */
+/**
+ * Fade and rise on scroll. Server and browser render the same element;
+ * reduced motion is handled in CSS ([data-reveal] in globals.css) so nothing hides or moves.
+ */
 export function Reveal({ children, delay = 0, className, as = "div" }: Props) {
-  const reduce = useReducedMotion();
   const Tag = motion[as];
-  if (reduce) {
-    const Plain = as;
-    return <Plain className={className}>{children}</Plain>;
-  }
   return (
     <Tag
+      data-reveal=""
       className={className}
       initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
