@@ -4,6 +4,7 @@ import { Collage } from "@/components/Collage";
 import { Faq } from "@/components/Faq";
 import { Footer } from "@/components/Footer";
 import { Hero, type SceneSlot } from "@/components/Hero";
+import { FromALink } from "@/components/FromALink";
 import { HowItWorks } from "@/components/HowItWorks";
 import { Nav } from "@/components/Nav";
 import { PlanTicket } from "@/components/PlanTicket";
@@ -150,6 +151,9 @@ export default function Home() {
           </h2>
           <HowItWorks />
         </Section>
+
+        {/* 4b. from a link */}
+        <FromALink />
 
         {/* 5. any plan */}
         <section aria-labelledby="plans-title" className="bg-ink pb-24 md:pb-36">
