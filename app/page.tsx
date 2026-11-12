@@ -86,12 +86,12 @@ const FAQ = [
   { q: "how much does it cost?", a: "Free for users." },
 ];
 
-// Illustrations for the hero cards. PLACEHOLDER until the files exist in /public/scenes/.
+// Hero cards: drawn in white (components/SceneArt) unless an illustration file exists in /public/scenes/.
 function sceneSlots(): [SceneSlot, SceneSlot] {
   const has = (f: string) => fs.existsSync(path.join(process.cwd(), "public", "scenes", f));
   return [
-    { file: "scene-3.jpg", label: "the same street, together", alt: "friends in small groups out together on a new york street", available: has("scene-3.jpg") },
-    { file: "scene-1.jpg", label: "orbi café no. 1", alt: "friends gathered outside a corner café at night", available: has("scene-1.jpg") },
+    { file: "scene-3.jpg", label: "dinner · one spot left", alt: "friends at a dinner table with one open seat", available: has("scene-3.jpg"), art: "dinner" },
+    { file: "scene-1.jpg", label: "orbi café no. 1 · friday", alt: "friends gathered outside a corner café", available: has("scene-1.jpg"), art: "cafe" },
   ];
 }
 
