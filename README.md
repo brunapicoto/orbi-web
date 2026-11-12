@@ -1,6 +1,6 @@
 # orbi-web
 
-The landing page and waitlist for orbi. Next.js (App Router), TypeScript, Tailwind CSS v4, Framer Motion, Supabase.
+The landing page, waitlist and app for orbi. Next.js (App Router), TypeScript, Tailwind CSS v4, Framer Motion, Supabase.
 
 ## Run locally
 
@@ -17,6 +17,30 @@ npm run dev
 
 Without the keys the site still builds and runs; the form shows "the waitlist isn't connected yet."
 
+## The app (`/app`)
+
+An installable web app (add to home screen) where people post plans and RSVP blind.
+
+- **sign in:** magic link by email (Supabase Auth), no password
+- **mutuals:** everyone has an invite link; accepting it connects two people
+- **plans:** type, place, time, open spots (2 or more, so 3+ people)
+- **blind rsvp:** people see "someone is hosting" and a count, never names
+- **the rule of 3:** a plan is on once the host plus 2 say yes; if it doesn't reach 3 by start time it quietly disappears
+- **the reveal:** at start time the people in the plan see who's coming
+- **after:** who was there, a group photo, "host the next one"
+
+The privacy rules are enforced in the database (`supabase/app.sql`), not just in the UI.
+`supabase/tests/` checks them against a local Postgres (38 scenarios).
+
+**Demo mode:** without Supabase keys, `/app` runs on example data held in memory, with a banner that says so.
+
+**Supabase setup for the app:**
+1. Run `supabase/app.sql` in the SQL editor (after `waitlist.sql`). It also creates the private `plan-photos` storage bucket.
+2. Authentication > URL Configuration: set the Site URL to your domain and add `https://<your-domain>/auth/callback` to the redirect URLs.
+3. Authentication > Emails: the default sender works for testing but is heavily rate limited; set up custom SMTP (for example Resend) before inviting people.
+
+Not built yet: email reminders ("your plan is on", "starts in 1 hour"), push notifications, chat, maps.
+
 ## Deploy (Vercel)
 
 Import this repo in Vercel. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `NEXT_PUBLIC_SITE_URL` (the live domain, used for Open Graph links).
@@ -32,3 +56,6 @@ Import this repo in Vercel. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABAS
 - `components/`: `OrbitDial`, `Section`, `PlanTicket`, `StatCard`, `WaitlistForm`, `Faq`, `HowItWorks`, `Collage`, `Nav`, `Footer`, `Reveal`
 - `app/actions/waitlist.ts`: server action that validates and inserts into Supabase
 - `app/icon.svg`, `app/opengraph-image.tsx`: favicon and share image
+- `app/app/`: the app screens; `app/app/actions.ts`: everything the app writes
+- `lib/app/store.ts`: data access (Supabase), `lib/app/demo.ts`: demo data
+- `middleware.ts`: keeps the session fresh and sends signed-out visitors to `/app/login`
