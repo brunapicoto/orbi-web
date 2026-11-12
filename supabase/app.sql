@@ -363,6 +363,142 @@ as $$
   delete from orbit_picks where plan_id = p and picker = auth.uid() and picked = target;
 $$;
 
+-- ---------------------------------------------------------------- memories you add yourself
+-- A memory from something that happened outside a plan. You can tag your connections,
+-- but a tagged person only sees it after they accept. Declining is silent.
+create table if not exists public.memories (
+  id uuid primary key default gen_random_uuid(),
+  created_by uuid not null default auth.uid() references public.profiles (id) on delete cascade,
+  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'other')),
+  place text not null check (char_length(btrim(place)) between 1 and 80),
+  happened_on date not null,
+  note text check (note is null or char_length(note) <= 280),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.memory_people (
+  memory_id uuid not null references public.memories (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted')),
+  primary key (memory_id, user_id)
+);
+
+create table if not exists public.memory_photos (
+  id uuid primary key default gen_random_uuid(),
+  memory_id uuid not null references public.memories (id) on delete cascade,
+  uploaded_by uuid not null default auth.uid() references public.profiles (id) on delete cascade,
+  path text not null unique,
+  created_at timestamptz not null default now()
+);
+
+-- creator, or someone who accepted
+create or replace function public.can_see_memory(m uuid, u uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select exists (select 1 from memories where id = m and created_by = u)
+      or exists (select 1 from memory_people where memory_id = m and user_id = u and status = 'accepted');
+$$;
+
+alter table public.memories enable row level security;
+alter table public.memory_people enable row level security;
+alter table public.memory_photos enable row level security;
+-- everything goes through the functions below, except reading photo records
+drop policy if exists memory_photos_select on public.memory_photos;
+create policy memory_photos_select on public.memory_photos for select to authenticated
+  using (public.can_see_memory(memory_id, auth.uid()));
+drop policy if exists memory_photos_insert on public.memory_photos;
+create policy memory_photos_insert on public.memory_photos for insert to authenticated
+  with check (uploaded_by = auth.uid() and public.can_see_memory(memory_id, auth.uid()));
+revoke all on public.memories, public.memory_people, public.memory_photos from anon;
+grant select, insert on public.memory_photos to authenticated;
+
+create or replace function public.add_memory(k text, place text, happened date, note text, tagged uuid[])
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare
+  me uuid := auth.uid();
+  mid uuid;
+  t uuid;
+begin
+  if me is null then raise exception 'not signed in'; end if;
+  if happened > current_date then raise exception 'a memory is something that already happened'; end if;
+  insert into memories (created_by, kind, place, happened_on, note)
+  values (me, k, btrim(place), happened, nullif(btrim(note), '')) returning id into mid;
+  foreach t in array coalesce(tagged, '{}') loop
+    if t <> me and are_connected(me, t) then
+      insert into memory_people (memory_id, user_id) values (mid, t) on conflict do nothing;
+    end if;
+  end loop;
+  return mid;
+end;
+$$;
+
+-- accept shows it to you; decline quietly removes you
+create or replace function public.answer_memory(m uuid, accept boolean)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if accept then
+    update memory_people set status = 'accepted' where memory_id = m and user_id = auth.uid();
+  else
+    delete from memory_people where memory_id = m and user_id = auth.uid() and status = 'pending';
+  end if;
+end;
+$$;
+
+-- memories you can see, with only the names of people who accepted
+create or replace function public.my_memories()
+returns table (id uuid, kind text, place text, happened_on date, note text, is_mine boolean, with_names text[], waiting int)
+language sql stable security definer set search_path = public
+as $$
+  select m.id, m.kind, m.place, m.happened_on, m.note, m.created_by = auth.uid(),
+         array(
+           select pr.first_name from profiles pr
+           where (pr.id = m.created_by or pr.id in (select user_id from memory_people where memory_id = m.id and status = 'accepted'))
+             and pr.id <> auth.uid()
+           order by pr.first_name
+         ),
+         case when m.created_by = auth.uid()
+              then (select count(*)::int from memory_people where memory_id = m.id and status = 'pending')
+              else 0 end
+  from memories m
+  where can_see_memory(m.id, auth.uid())
+  order by m.happened_on desc;
+$$;
+
+-- memories someone tagged you in, waiting for your answer
+create or replace function public.memory_invites()
+returns table (id uuid, kind text, place text, happened_on date, from_name text)
+language sql stable security definer set search_path = public
+as $$
+  select m.id, m.kind, m.place, m.happened_on, pr.first_name
+  from memory_people mp
+  join memories m on m.id = mp.memory_id
+  join profiles pr on pr.id = m.created_by
+  where mp.user_id = auth.uid() and mp.status = 'pending'
+  order by m.created_at desc;
+$$;
+
+-- one memory, for its page: visible if you can see it, or if you were tagged and haven't answered
+create or replace function public.memory_detail(m uuid)
+returns table (id uuid, kind text, place text, happened_on date, note text, is_mine boolean, with_names text[], waiting int, invited_by text)
+language sql stable security definer set search_path = public
+as $$
+  select mm.id, mm.kind, mm.place, mm.happened_on, mm.note, mm.is_mine, mm.with_names, mm.waiting, null::text
+  from my_memories() mm where mm.id = m
+  union all
+  select i.id, i.kind, i.place, i.happened_on, null, false, '{}'::text[], 0, i.from_name
+  from memory_invites() i where i.id = m;
+$$;
+
+revoke all on function public.can_see_memory(uuid, uuid), public.add_memory(text, text, date, text, uuid[]),
+  public.answer_memory(uuid, boolean), public.my_memories(), public.memory_invites(), public.memory_detail(uuid) from public, anon;
+grant execute on function public.add_memory(text, text, date, text, uuid[]), public.answer_memory(uuid, boolean),
+  public.my_memories(), public.memory_invites(), public.memory_detail(uuid), public.can_see_memory(uuid, uuid) to authenticated;
+
 -- ---------------------------------------------------------------- what you're into (private)
 -- Used only to order the plans you already see. Never shown to anyone, never about people.
 create table if not exists public.preferences (
@@ -478,3 +614,16 @@ create policy "plan photos upload" on storage.objects for insert to authenticate
 
 -- used inside the row level security policies above, so the signed-in role needs to call them
 grant execute on function public.is_in_plan(uuid, uuid), public.are_connected(uuid, uuid), public.plan_started(uuid) to authenticated;
+
+-- photos for memories you added: private bucket, files at <memory_id>/<file>
+insert into storage.buckets (id, name, public)
+values ('memory-photos', 'memory-photos', false)
+on conflict (id) do nothing;
+
+drop policy if exists "memory photos read" on storage.objects;
+create policy "memory photos read" on storage.objects for select to authenticated
+  using (bucket_id = 'memory-photos' and public.can_see_memory(((storage.foldername(name))[1])::uuid, auth.uid()));
+
+drop policy if exists "memory photos upload" on storage.objects;
+create policy "memory photos upload" on storage.objects for insert to authenticated
+  with check (bucket_id = 'memory-photos' and public.can_see_memory(((storage.foldername(name))[1])::uuid, auth.uid()));

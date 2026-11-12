@@ -18,6 +18,7 @@ type DemoState = {
   /** keep-in-orbit picks, keyed "planId:picker" */
   picks: Record<string, string[]>;
   prefs: import("@/lib/app/types").Prefs | null;
+  memories: (import("@/lib/app/types").NewMemory & { id: string; createdBy: string; accepted: string[]; pending: string[]; photos: { id: string; url: string }[] })[];
 };
 
 const ME = "me";
@@ -39,6 +40,10 @@ function seed(): DemoState {
     mutualsWithMe: { lena: 42, marcus: 18, iris: 9, theo: 65, sofia: 23, naomi: 31, eva: 0 },
     // eva was at the comedy show and already picked you; pick her back and you connect
     picks: { "p-past:eva": [ME] },
+    // lena added a memory with you; accept it to see it (shows the consent flow)
+    memories: [
+      { id: "m-lena", createdBy: "lena", kind: "brunch", place: "Sunday in Brooklyn", happenedOn: new Date(Date.now() - 12 * 86400_000).toISOString().slice(0, 10), note: "the pancakes were worth the line.", tagged: [ME, "naomi"], accepted: ["naomi"], pending: [ME], photos: [] },
+    ],
     prefs: { kinds: ["run", "gallery", "sauna"], times: ["weekend-morning", "weekend-afternoon"], areas: ["brooklyn"], groupSize: "small" },
     plans: [
       // happening now: the reveal
@@ -96,6 +101,14 @@ const find = (id: string) => {
   return p;
 };
 
+function memView(m: DemoState["memories"][number], invitedBy: string | null) {
+  const names = [m.createdBy, ...m.accepted].filter((u) => u !== ME).map((u) => nameOf(u)).sort();
+  return {
+    id: m.id, kind: m.kind, place: m.place, happenedOn: m.happenedOn, note: m.note || null, isMine: m.createdBy === ME,
+    withNames: names, waiting: m.createdBy === ME ? m.pending.length : 0, invitedBy,
+  };
+}
+
 // same bands as mutual_band() in supabase/app.sql
 function band(n: number) {
   if (n < 1) return null;
@@ -139,6 +152,47 @@ export async function demoStore(): Promise<Store> {
       // demo stand-in for "different friends in common with the group": overlaps shrink the sum
       const counts = [p.hostId, ...p.rsvps].filter((u) => u !== ME).map((u) => s.mutualsWithMe[u] ?? 0);
       return Math.max(Math.max(0, ...counts), Math.round(counts.reduce((a, b) => a + b, 0) * 0.6));
+    },
+    async memories() {
+      return s.memories
+        .filter((m) => m.createdBy === ME || m.accepted.includes(ME))
+        .map((m) => memView(m, null))
+        .sort((a, b) => b.happenedOn.localeCompare(a.happenedOn));
+    },
+    async memoryInvites() {
+      return s.memories
+        .filter((m) => m.pending.includes(ME))
+        .map((m) => ({ id: m.id, kind: m.kind, place: m.place, happenedOn: m.happenedOn, fromName: nameOf(m.createdBy) }));
+    },
+    async memory(id) {
+      const m = s.memories.find((x) => x.id === id);
+      if (!m) return null;
+      if (m.createdBy === ME || m.accepted.includes(ME)) return memView(m, null);
+      if (m.pending.includes(ME)) return { ...memView(m, nameOf(m.createdBy)), withNames: [], note: null };
+      return null;
+    },
+    async addMemory(input) {
+      if (input.happenedOn > new Date().toISOString().slice(0, 10)) throw new Error("a memory is something that already happened");
+      const id = `m-${Math.random().toString(36).slice(2, 8)}`;
+      const tagged = input.tagged.filter((t) => s.connections.includes(t));
+      s.memories.push({ ...input, tagged, id, createdBy: ME, accepted: [], pending: tagged, photos: [] });
+      return id;
+    },
+    async answerMemory(id, accept) {
+      const m = s.memories.find((x) => x.id === id);
+      if (!m || !m.pending.includes(ME)) return;
+      m.pending = m.pending.filter((u) => u !== ME);
+      if (accept) m.accepted.push(ME);
+    },
+    async memoryPhotos(id) {
+      const m = s.memories.find((x) => x.id === id);
+      return m && (m.createdBy === ME || m.accepted.includes(ME)) ? m.photos : [];
+    },
+    async uploadMemoryPhoto(id, file) {
+      const m = s.memories.find((x) => x.id === id);
+      if (!m || !(m.createdBy === ME || m.accepted.includes(ME))) throw new Error("not found");
+      const buf = Buffer.from(await file.arrayBuffer());
+      m.photos.push({ id: `mp-${m.photos.length + 1}`, url: `data:${file.type};base64,${buf.toString("base64")}` });
     },
     async prefs() {
       return s.prefs;

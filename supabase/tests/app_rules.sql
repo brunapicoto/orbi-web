@@ -184,6 +184,43 @@ select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
 select pg_temp.check(plan_group_mutuals('11111111-0000-0000-0000-000000000005') = 1, 'at the reveal Bia sees one exact number for the group: 1 friend in common (Eva)');
 reset role;
 
+-- ---------------------------------------------------------------- memories you add yourself
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+-- Ana tags Bia and Duda (connections) and Eva (not her connection: ignored)
+select set_config('t.mem', add_memory('dinner', 'Lilia', current_date - 3, 'birthday dinner',
+  array['00000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-00000000000d','00000000-0000-0000-0000-00000000000e']::uuid[])::text, false);
+select pg_temp.check((select count(*) from my_memories()) = 1, 'Ana sees the memory she added');
+select pg_temp.check((select waiting from my_memories()) = 2, 'she sees 2 people invited (Eva was not her connection, so not tagged)');
+select pg_temp.check((select cardinality(with_names) from my_memories()) = 0, 'no names until people accept');
+select pg_temp.expect_fail($$select add_memory('run','Hudson', current_date + 1, null, '{}')$$, 'a memory cannot be in the future');
+select pg_temp.expect_fail($$select * from memories$$, 'nobody reads the memories table directly');
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check((select count(*) from my_memories()) = 0, 'Bia does not see it before accepting');
+select pg_temp.check((select from_name from memory_invites()) = 'Ana', 'Bia gets an invite from Ana');
+select answer_memory(current_setting('t.mem')::uuid, true);
+select pg_temp.check((select count(*) from my_memories()) = 1, 'after accepting, Bia sees it');
+select pg_temp.check((select with_names from my_memories()) = '{Ana}', 'with Ana (Duda has not accepted)');
+insert into memory_photos (memory_id, path) values (current_setting('t.mem')::uuid, current_setting('t.mem') || '/a.jpg');
+insert into storage.objects (bucket_id, name) values ('memory-photos', current_setting('t.mem') || '/a.jpg');
+select pg_temp.check((select count(*) from storage.objects where bucket_id = 'memory-photos') = 1, 'Bia can add a photo to it');
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000d');
+select answer_memory(current_setting('t.mem')::uuid, false);
+select pg_temp.check((select count(*) from memory_invites()) = 0, 'Duda declines: the invite is gone');
+select pg_temp.check((select count(*) from my_memories()) = 0, 'and she never sees the memory');
+select pg_temp.check((select count(*) from storage.objects where bucket_id = 'memory-photos') = 0, 'or its photo');
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check((select waiting from my_memories()) = 0, 'Ana sees nobody waiting, and no "no"');
+select pg_temp.check((select with_names from my_memories()) = '{Bia}', 'and Bia with her');
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000e');
+select pg_temp.check((select count(*) from my_memories()) + (select count(*) from memory_invites()) = 0, 'Eva, never tagged, sees nothing');
+select pg_temp.expect_fail($$insert into storage.objects (bucket_id, name) values ('memory-photos', current_setting('t.mem') || '/x.jpg')$$, 'and cannot add photos');
+reset role;
+
 -- ---------------------------------------------------------------- preferences are private
 set role authenticated;
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');

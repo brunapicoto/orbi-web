@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
 import { demoStore } from "@/lib/app/demo";
-import type { Me, NewPlan, OrbitState, Prefs, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
+import type { Me, MemoryInvite, MemoryView, NewMemory, NewPlan, OrbitState, Prefs, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
 
 /** Everything the app reads and writes. Two implementations: Supabase, or demo data. */
 export interface Store {
@@ -16,6 +16,13 @@ export interface Store {
   groupMutuals(id: string): Promise<number>;
   orbitState(id: string): Promise<OrbitState>;
   prefs(): Promise<Prefs | null>;
+  memories(): Promise<MemoryView[]>;
+  memoryInvites(): Promise<MemoryInvite[]>;
+  memory(id: string): Promise<MemoryView | null>;
+  addMemory(m: NewMemory): Promise<string>;
+  answerMemory(id: string, accept: boolean): Promise<void>;
+  memoryPhotos(id: string): Promise<Photo[]>;
+  uploadMemoryPhoto(id: string, file: File): Promise<void>;
   savePrefs(p: Prefs): Promise<void>;
   keepInOrbit(id: string, target: string): Promise<"picked" | "connected">;
   dropPick(id: string, target: string): Promise<void>;
@@ -44,8 +51,18 @@ export function friendly(err: unknown): string {
   if (/invite link/.test(msg)) return "this invite link doesn't work. ask for a new one.";
   if (/profile first/.test(msg)) return "add your first name first.";
   if (/not found/.test(msg)) return "this plan isn't available.";
+  if (/already happened/.test(msg)) return "pick a day that already happened.";
   return "something went wrong. please try again.";
 }
+
+type MemRow = {
+  id: string; kind: string; place: string; happened_on: string; note: string | null;
+  is_mine: boolean; with_names: string[] | null; waiting: number; invited_by?: string | null;
+};
+const toMemory = (r: MemRow): MemoryView => ({
+  id: r.id, kind: r.kind, place: r.place, happenedOn: r.happened_on, note: r.note, isMine: r.is_mine,
+  withNames: r.with_names ?? [], waiting: r.waiting ?? 0, invitedBy: r.invited_by ?? null,
+});
 
 async function supabaseStore(): Promise<Store> {
   const sb = await supabaseServer();
@@ -101,6 +118,46 @@ async function supabaseStore(): Promise<Store> {
     async groupMutuals(id) {
       const { data, error } = await sb.rpc("plan_group_mutuals", { p: id });
       return error ? 0 : ((data as number | null) ?? 0);
+    },
+    async memories() {
+      const { data, error } = await sb.rpc("my_memories");
+      if (error) throw error;
+      return (data as MemRow[]).map(toMemory);
+    },
+    async memoryInvites() {
+      const { data, error } = await sb.rpc("memory_invites");
+      if (error) return [];
+      return (data as { id: string; kind: string; place: string; happened_on: string; from_name: string }[]).map((r) => ({
+        id: r.id, kind: r.kind, place: r.place, happenedOn: r.happened_on, fromName: r.from_name,
+      }));
+    },
+    async memory(id) {
+      const { data, error } = await sb.rpc("memory_detail", { m: id });
+      if (error || !data?.length) return null;
+      return toMemory((data as MemRow[])[0]);
+    },
+    async addMemory(m) {
+      const { data, error } = await sb.rpc("add_memory", { k: m.kind, place: m.place, happened: m.happenedOn, note: m.note, tagged: m.tagged });
+      if (error) throw error;
+      return data as string;
+    },
+    async answerMemory(id, accept) {
+      const { error } = await sb.rpc("answer_memory", { m: id, accept });
+      if (error) throw error;
+    },
+    async memoryPhotos(id) {
+      const { data, error } = await sb.from("memory_photos").select("id, path").eq("memory_id", id).order("created_at");
+      if (error || !data?.length) return [];
+      const { data: signed } = await sb.storage.from("memory-photos").createSignedUrls(data.map((d) => d.path), 60 * 60);
+      return data.map((d, i) => ({ id: d.id, url: signed?.[i]?.signedUrl ?? "" })).filter((p) => p.url);
+    },
+    async uploadMemoryPhoto(id, file) {
+      const ext = (file.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
+      const path = `${id}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await sb.storage.from("memory-photos").upload(path, file, { contentType: file.type });
+      if (error) throw error;
+      const { error: e2 } = await sb.from("memory_photos").insert({ memory_id: id, path });
+      if (e2) throw e2;
     },
     async prefs() {
       const { data } = await sb.from("preferences").select("kinds, times, areas, group_size").maybeSingle();

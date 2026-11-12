@@ -28,6 +28,24 @@ export type Photo = { id: string; url: string };
 /** What you're into. Private: only used to order plans you already see. */
 export type Prefs = { kinds: string[]; times: string[]; areas: string[]; groupSize: "small" | "medium" | "big" | null };
 
+/** A memory someone added by hand. Names are only of people who accepted. */
+export type MemoryView = {
+  id: string;
+  kind: string;
+  place: string;
+  happenedOn: string; // YYYY-MM-DD
+  note: string | null;
+  isMine: boolean;
+  withNames: string[];
+  waiting: number;
+  /** set when you were tagged and haven't answered yet */
+  invitedBy: string | null;
+};
+
+export type MemoryInvite = { id: string; kind: string; place: string; happenedOn: string; fromName: string };
+
+export type NewMemory = { kind: string; place: string; happenedOn: string; note: string; tagged: string[] };
+
 export type NewPlan = { kind: string; place: string; note: string; startsAt: string; openSpots: number; bringing: number };
 
 /** After a plan: who you picked to keep in your orbit, and who you're already connected to. */

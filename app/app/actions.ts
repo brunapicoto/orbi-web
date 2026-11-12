@@ -199,3 +199,61 @@ export async function savePrefs(_prev: FormState, fd: FormData): Promise<FormSta
   if (next.startsWith("/app")) redirect(next);
   return { ok: true };
 }
+
+// ---------------------------------------------------------------- memories you add yourself
+
+export async function addMemory(_prev: FormState, fd: FormData): Promise<FormState> {
+  const kind = String(fd.get("kind") ?? "");
+  const place = cleanName(fd.get("place"));
+  const happenedOn = String(fd.get("happenedOn") ?? "");
+  const note = String(fd.get("note") ?? "").trim();
+  const tagged = fd.getAll("tagged").map(String);
+  const photo = fd.get("photo");
+
+  const fieldErrors: Record<string, string> = {};
+  if (!KIND_IDS.includes(kind)) fieldErrors.kind = "pick what it was.";
+  if (!place) fieldErrors.place = "add where it was.";
+  else if (place.length > 80) fieldErrors.place = "keep it under 80 characters.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(happenedOn)) fieldErrors.happenedOn = "pick the day.";
+  if (note.length > 280) fieldErrors.note = "keep it under 280 characters.";
+  if (photo instanceof File && photo.size > 0) {
+    if (!/^image\/(jpeg|png|webp|heic|heif)$/.test(photo.type)) fieldErrors.photo = "use a jpg, png, webp or heic photo.";
+    else if (photo.size > 8 * 1024 * 1024) fieldErrors.photo = "that photo is over 8 mb. try a smaller one.";
+  }
+  if (Object.keys(fieldErrors).length) return { fieldErrors };
+
+  const store = await getStore();
+  let id: string;
+  try {
+    id = await store.addMemory({ kind, place, happenedOn, note, tagged });
+    if (photo instanceof File && photo.size > 0) await store.uploadMemoryPhoto(id, photo);
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath("/app/memories");
+  redirect(`/app/memories/${id}?added=1`);
+}
+
+export async function answerMemory(id: string, accept: boolean) {
+  const store = await getStore();
+  await store.answerMemory(id, accept);
+  revalidatePath("/app/memories");
+  revalidatePath("/app/pings");
+  redirect(accept ? `/app/memories/${id}` : "/app/memories");
+}
+
+export async function uploadMemoryPhoto(_prev: FormState, fd: FormData): Promise<FormState> {
+  const id = String(fd.get("planId") ?? "");
+  const file = fd.get("photo");
+  if (!(file instanceof File) || file.size === 0) return { error: "choose a photo first." };
+  if (!/^image\/(jpeg|png|webp|heic|heif)$/.test(file.type)) return { error: "use a jpg, png, webp or heic photo." };
+  if (file.size > 8 * 1024 * 1024) return { error: "that photo is over 8 mb. try a smaller one." };
+  const store = await getStore();
+  try {
+    await store.uploadMemoryPhoto(id, file);
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath(`/app/memories/${id}`);
+  return { ok: true };
+}

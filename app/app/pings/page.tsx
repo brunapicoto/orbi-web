@@ -10,10 +10,13 @@ type Ping = { key: string; href: string; kind: string; title: string; text: stri
 /** The few things worth telling you, worked out from your plans. Nothing about who said yes. */
 export default async function Pings() {
   const { store } = await requireMe("/app/pings");
-  const plans = await store.plans();
+  const [plans, invites] = await Promise.all([store.plans(), store.memoryInvites()]);
   const mine = plans.filter((p) => p.isHost || p.joined);
   const pings: Ping[] = [];
 
+  for (const i of invites) {
+    pings.push({ key: `mem-${i.id}`, href: `/app/memories/${i.id}`, kind: i.kind, title: `${i.fromName.toLowerCase()} added a memory with you`, text: `${i.place}. accept to keep it, or let it go. nothing is sent back.` });
+  }
   for (const p of mine.filter((p) => p.status === "live")) {
     pings.push({ key: `live-${p.id}`, href: `/app/plan/${p.id}`, kind: p.kind, title: `it's starting: ${p.place}`, text: "the list is open. see who's here." });
   }
