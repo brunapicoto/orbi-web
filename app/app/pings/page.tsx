@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { KindIcon } from "@/components/app/KindIcon";
-import { formatWhen, kindLabel } from "@/lib/app/kinds";
+import { formatWhen, planNoun } from "@/lib/app/kinds";
 import { requireMe } from "@/lib/app/session";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export default async function Pings() {
       key: `open-${p.id}`,
       href: `/app/plan/${p.id}`,
       kind: p.kind,
-      title: p.isHost ? `your ${kindLabel(p.kind)} is out` : `you saved a spot at ${p.place}`,
+      title: p.isHost ? `your ${planNoun(p)} is out` : `you saved a spot at ${p.place}`,
       text: `${need} more ${need === 1 ? "yes" : "yeses"} and it's on. ${formatWhen(p.startsAt)}.`,
     });
   }
@@ -41,7 +41,7 @@ export default async function Pings() {
   }
   const fresh = plans.filter((p) => !p.isHost && !p.joined && (p.status === "open" || p.status === "on") && p.taken < p.openSpots).slice(0, 3);
   for (const p of fresh) {
-    pings.push({ key: `new-${p.id}`, href: `/app/plan/${p.id}`, kind: p.kind, title: `someone opened a ${kindLabel(p.kind)}`, text: `${p.place} · ${formatWhen(p.startsAt)}.` });
+    pings.push({ key: `new-${p.id}`, href: `/app/plan/${p.id}`, kind: p.kind, title: `someone opened a ${planNoun(p)}`, text: `${p.place} · ${formatWhen(p.startsAt)}.` });
   }
 
   return (

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { KIND_IDS } from "@/lib/app/kinds";
+import { KIND_IDS, TOPIC_IDS } from "@/lib/app/kinds";
 import { friendly, getStore } from "@/lib/app/store";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
 
@@ -63,9 +63,11 @@ export async function createPlan(_prev: FormState, fd: FormData): Promise<FormSt
   const startsAt = String(fd.get("startsAt") ?? "");
   const openSpots = Number(fd.get("openSpots"));
   const bringing = Number(fd.get("bringing") ?? 0);
+  const topic = String(fd.get("topic") ?? "");
 
   const fieldErrors: Record<string, string> = {};
   if (!KIND_IDS.includes(kind)) fieldErrors.kind = "pick what kind of plan it is.";
+  else if (kind === "networking" && !TOPIC_IDS.includes(topic)) fieldErrors.kind = "pick the field for your networking plan.";
   if (!place) fieldErrors.place = "add a place.";
   else if (place.length > 80) fieldErrors.place = "keep it under 80 characters.";
   if (note.length > 280) fieldErrors.note = "keep it under 280 characters.";
@@ -81,7 +83,7 @@ export async function createPlan(_prev: FormState, fd: FormData): Promise<FormSt
   const store = await getStore();
   let id: string;
   try {
-    id = await store.createPlan({ kind, place, note, startsAt: when.toISOString(), openSpots, bringing });
+    id = await store.createPlan({ kind, place, note, startsAt: when.toISOString(), openSpots, bringing, topic: kind === "networking" ? topic : null });
   } catch (e) {
     return { error: friendly(e) };
   }
@@ -186,6 +188,7 @@ export async function savePrefs(_prev: FormState, fd: FormData): Promise<FormSta
     kinds: pick("kinds", KIND_IDS.filter((k) => k !== "other")),
     times: pick("times", TIMES.map((t) => t.id)),
     areas: pick("areas", AREAS.map((a) => a.id)),
+    topics: pick("topics", TOPIC_IDS),
     groupSize: (["small", "medium", "big"].includes(size) ? size : null) as "small" | "medium" | "big" | null,
   };
   const store = await getStore();

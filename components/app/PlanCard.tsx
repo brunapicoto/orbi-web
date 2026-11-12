@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { KindIcon } from "@/components/app/KindIcon";
-import { formatWhen, kindLabel } from "@/lib/app/kinds";
+import { formatWhen, planLabel } from "@/lib/app/kinds";
 import { trustLines } from "@/lib/app/trust";
 import type { PlanSignal, PlanView } from "@/lib/app/types";
 
@@ -59,7 +59,7 @@ export function PlanCard({ plan, signal, why }: { plan: PlanView; signal?: PlanS
         <div className="flex min-w-0 flex-col gap-1">
           <span className="mono flex items-center gap-2 text-lavender">
             <KindIcon kind={plan.kind} className="h-4 w-4" />
-            {kindLabel(plan.kind)}
+            {planLabel(plan)}
           </span>
           <span className="display text-[1.75rem] leading-tight text-bone [overflow-wrap:anywhere]">{plan.place}</span>
         </div>

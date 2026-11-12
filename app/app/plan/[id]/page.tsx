@@ -9,7 +9,7 @@ import { OrbitPicks } from "@/components/app/OrbitPicks";
 import { PhotoUpload } from "@/components/app/PhotoUpload";
 import { SpotDots, TrustDot, planLine, whoLine } from "@/components/app/PlanCard";
 import { trustLines } from "@/lib/app/trust";
-import { formatWhen, kindLabel } from "@/lib/app/kinds";
+import { formatWhen, planLabel, planNoun } from "@/lib/app/kinds";
 import { requireMe } from "@/lib/app/session";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +50,7 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
         <div className="flex min-w-0 flex-col gap-3">
           <span className="mono flex items-center gap-2 text-lavender">
             <KindIcon kind={plan.kind} className="h-4 w-4" />
-            {kindLabel(plan.kind)}
+            {planLabel(plan)}
           </span>
           <h1 className="display text-[2.75rem] leading-[0.95]">{plan.place}</h1>
           <p className="mono text-muted">{formatWhen(plan.startsAt)}</p>
@@ -148,7 +148,7 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
       {plan.status === "past" && inPlan ? (
         <section className="flex flex-col gap-4 rounded-3xl bg-bordeaux p-6">
           <h2 className="display text-[2.25rem] text-lavender">host the next one</h2>
-          <p className="text-[16px] text-lavender-soft">good night? open a few spots for the next {kindLabel(plan.kind)}. same mutuals, new faces.</p>
+          <p className="text-[16px] text-lavender-soft">good night? open a few spots for the next {planNoun(plan)}. same mutuals, new faces.</p>
           <Link href={`/app/new?kind=${plan.kind}&again=1`} className="mono inline-flex min-h-12 items-center self-start rounded-full bg-bone px-6 text-bordeaux hover:bg-lavender hover:text-ink">
             post a plan
           </Link>

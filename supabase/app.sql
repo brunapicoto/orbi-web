@@ -29,7 +29,7 @@ create table if not exists public.connections (
 create table if not exists public.plans (
   id uuid primary key default gen_random_uuid(),
   host_id uuid not null default auth.uid() references public.profiles (id) on delete cascade,
-  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'other')),
+  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'other')),
   place text not null check (char_length(btrim(place)) between 1 and 80),
   note text check (note is null or char_length(note) <= 280),
   starts_at timestamptz not null,
@@ -49,6 +49,13 @@ alter table public.plans drop constraint if exists plans_min_group;
 alter table public.plans add constraint plans_open_spots_check check (open_spots between 1 and 11);
 alter table public.plans add constraint plans_bringing_check check (bringing between 0 and 10);
 alter table public.plans add constraint plans_min_group check (1 + bringing + open_spots >= 3);
+
+-- networking plans carry a field (finance, consulting...); kept in sync with lib/app/kinds.ts
+alter table public.plans add column if not exists topic text;
+alter table public.plans drop constraint if exists plans_kind_check;
+alter table public.plans add constraint plans_kind_check check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'other'));
+alter table public.plans drop constraint if exists plans_topic_check;
+alter table public.plans add constraint plans_topic_check check (topic is null or (kind = 'networking' and topic in ('finance', 'consulting', 'tech', 'startups', 'marketing', 'law', 'health', 'creative', 'policy', 'school')));
 create index if not exists plans_host_idx on public.plans (host_id);
 create index if not exists plans_starts_idx on public.plans (starts_at);
 
@@ -219,13 +226,14 @@ drop function if exists public.my_plans();
 create function public.my_plans()
 returns table (
   id uuid, kind text, place text, note text, starts_at timestamptz,
-  open_spots int, taken int, bringing int, is_host boolean, joined boolean, status text
+  open_spots int, taken int, bringing int, topic text, is_host boolean, joined boolean, status text
 )
 language sql stable security definer set search_path = public
 as $$
   select p.id, p.kind, p.place, p.note, p.starts_at, p.open_spots,
          plan_taken(p.id) as taken,
          p.bringing,
+         p.topic,
          p.host_id = auth.uid() as is_host,
          exists (select 1 from rsvps r where r.plan_id = p.id and r.user_id = auth.uid()) as joined,
          plan_status(p.starts_at, plan_count(p.id)) as status
@@ -369,12 +377,15 @@ $$;
 create table if not exists public.memories (
   id uuid primary key default gen_random_uuid(),
   created_by uuid not null default auth.uid() references public.profiles (id) on delete cascade,
-  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'other')),
+  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'other')),
   place text not null check (char_length(btrim(place)) between 1 and 80),
   happened_on date not null,
   note text check (note is null or char_length(note) <= 280),
   created_at timestamptz not null default now()
 );
+
+alter table public.memories drop constraint if exists memories_kind_check;
+alter table public.memories add constraint memories_kind_check check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'other'));
 
 create table if not exists public.memory_people (
   memory_id uuid not null references public.memories (id) on delete cascade,
@@ -510,6 +521,7 @@ create table if not exists public.preferences (
   updated_at timestamptz not null default now(),
   check (cardinality(kinds) <= 11 and cardinality(times) <= 4 and cardinality(areas) <= 4)
 );
+alter table public.preferences add column if not exists topics text[] not null default '{}';
 alter table public.preferences enable row level security;
 drop policy if exists preferences_own on public.preferences;
 create policy preferences_own on public.preferences for all to authenticated

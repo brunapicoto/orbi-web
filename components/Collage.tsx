@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import Image from "next/image";
-import { BarArt, CafeArt, MuseumArt, PaintArt, ParkArt, RunArt, SaunaArt, ShowArt } from "@/components/SceneArt";
+import { BarArt, CafeArt, MuseumArt, NetworkingArt, PaintArt, ParkArt, RunArt, SaunaArt, ShowArt } from "@/components/SceneArt";
 
 /**
  * A sideways-scrolling row of example plans: white drawings on bordeaux cards.
@@ -10,6 +10,7 @@ import { BarArt, CafeArt, MuseumArt, PaintArt, ParkArt, RunArt, SaunaArt, ShowAr
 const CARDS = [
   { file: "met.jpg", label: "a visit to the met · sat 11am", Art: MuseumArt },
   { file: "monkey-bar.jpg", label: "dinner at monkey bar · thu 8pm", Art: BarArt },
+  { file: "networking.jpg", label: "networking breakfast · finance · wed 8am", Art: NetworkingArt },
   { file: "moms.jpg", label: "moms' meetup in central park · sat 10am", Art: ParkArt },
   { file: "01.jpg", label: "run club · sat 8am", Art: RunArt },
   { file: "02.jpg", label: "sauna · sun 5pm", Art: SaunaArt },

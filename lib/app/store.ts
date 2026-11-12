@@ -75,11 +75,11 @@ async function supabaseStore(): Promise<Store> {
 
   type Row = {
     id: string; kind: string; place: string; note: string | null; starts_at: string;
-    open_spots: number; taken: number; bringing: number | null; is_host: boolean; joined: boolean; status: PlanStatus;
+    open_spots: number; taken: number; bringing: number | null; topic: string | null; is_host: boolean; joined: boolean; status: PlanStatus;
   };
   const toView = (r: Row): PlanView => ({
     id: r.id, kind: r.kind, place: r.place, note: r.note, startsAt: r.starts_at, openSpots: r.open_spots,
-    taken: r.taken, bringing: r.bringing ?? 0, isHost: r.is_host, joined: r.joined, status: r.status,
+    taken: r.taken, bringing: r.bringing ?? 0, topic: r.topic ?? null, isHost: r.is_host, joined: r.joined, status: r.status,
   });
 
   const store: Store = {
@@ -160,14 +160,14 @@ async function supabaseStore(): Promise<Store> {
       if (e2) throw e2;
     },
     async prefs() {
-      const { data } = await sb.from("preferences").select("kinds, times, areas, group_size").maybeSingle();
+      const { data } = await sb.from("preferences").select("kinds, times, areas, topics, group_size").maybeSingle();
       if (!data) return null;
-      return { kinds: data.kinds ?? [], times: data.times ?? [], areas: data.areas ?? [], groupSize: data.group_size ?? null };
+      return { kinds: data.kinds ?? [], times: data.times ?? [], areas: data.areas ?? [], topics: data.topics ?? [], groupSize: data.group_size ?? null };
     },
     async savePrefs(p) {
       const id = await uid();
       const { error } = await sb.from("preferences").upsert({
-        user_id: id, kinds: p.kinds, times: p.times, areas: p.areas, group_size: p.groupSize, updated_at: new Date().toISOString(),
+        user_id: id, kinds: p.kinds, times: p.times, areas: p.areas, topics: p.topics, group_size: p.groupSize, updated_at: new Date().toISOString(),
       });
       if (error) throw error;
     },
@@ -200,7 +200,7 @@ async function supabaseStore(): Promise<Store> {
     async createPlan(input) {
       const { data, error } = await sb
         .from("plans")
-        .insert({ kind: input.kind, place: input.place, note: input.note || null, starts_at: input.startsAt, open_spots: input.openSpots, bringing: input.bringing })
+        .insert({ kind: input.kind, place: input.place, note: input.note || null, starts_at: input.startsAt, open_spots: input.openSpots, bringing: input.bringing, topic: input.kind === "networking" ? input.topic ?? null : null })
         .select("id")
         .single();
       if (error) throw error;

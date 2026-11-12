@@ -11,6 +11,8 @@ export type PlanView = {
   taken: number;
   /** friends the host is bringing who are not on orbi */
   bringing: number;
+  /** for networking plans: the field (finance, consulting...) */
+  topic: string | null;
   isHost: boolean;
   joined: boolean;
   status: PlanStatus;
@@ -26,7 +28,7 @@ export type Me = { id: string; email: string | null; firstName: string | null; i
 export type Photo = { id: string; url: string };
 
 /** What you're into. Private: only used to order plans you already see. */
-export type Prefs = { kinds: string[]; times: string[]; areas: string[]; groupSize: "small" | "medium" | "big" | null };
+export type Prefs = { kinds: string[]; times: string[]; areas: string[]; topics: string[]; groupSize: "small" | "medium" | "big" | null };
 
 /** A memory someone added by hand. Names are only of people who accepted. */
 export type MemoryView = {
@@ -46,7 +48,7 @@ export type MemoryInvite = { id: string; kind: string; place: string; happenedOn
 
 export type NewMemory = { kind: string; place: string; happenedOn: string; note: string; tagged: string[] };
 
-export type NewPlan = { kind: string; place: string; note: string; startsAt: string; openSpots: number; bringing: number };
+export type NewPlan = { kind: string; place: string; note: string; startsAt: string; openSpots: number; bringing: number; topic?: string | null };
 
 /** After a plan: who you picked to keep in your orbit, and who you're already connected to. */
 export type OrbitState = { picked: string[]; connected: string[] };

@@ -10,6 +10,7 @@ const primary =
 
 export function LoginForm({ next }: { next: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(sendMagicLink, {});
+  const [email, setEmail] = useState("");
   if (state.ok) {
     return (
       <div role="status" className="flex flex-col gap-3">
@@ -26,7 +27,7 @@ export function LoginForm({ next }: { next: string }) {
       <label htmlFor="li-email" className="mono text-muted-2">
         email
       </label>
-      <input id="li-email" name="email" type="email" inputMode="email" autoComplete="email" required className={field} aria-invalid={!!state.fieldErrors?.email} aria-describedby={state.fieldErrors?.email ? "li-email-e" : undefined} />
+      <input id="li-email" name="email" type="email" inputMode="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={field} aria-invalid={!!state.fieldErrors?.email} aria-describedby={state.fieldErrors?.email ? "li-email-e" : undefined} />
       {state.fieldErrors?.email ? <p id="li-email-e" className="mono text-lavender">{state.fieldErrors.email}</p> : null}
       {state.error ? <p role="alert" className="mono text-lavender">{state.error}</p> : null}
       <button type="submit" disabled={pending} className={primary}>

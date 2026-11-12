@@ -44,7 +44,7 @@ function seed(): DemoState {
     memories: [
       { id: "m-lena", createdBy: "lena", kind: "brunch", place: "Sunday in Brooklyn", happenedOn: new Date(Date.now() - 12 * 86400_000).toISOString().slice(0, 10), note: "the pancakes were worth the line.", tagged: [ME, "naomi"], accepted: ["naomi"], pending: [ME], photos: [] },
     ],
-    prefs: { kinds: ["run", "gallery", "sauna"], times: ["weekend-morning", "weekend-afternoon"], areas: ["brooklyn"], groupSize: "small" },
+    prefs: { kinds: ["run", "gallery", "sauna"], times: ["weekend-morning", "weekend-afternoon"], areas: ["brooklyn"], topics: ["finance"], groupSize: "small" },
     plans: [
       // happening now: the reveal
       { id: "p-dinner", hostId: "lena", kind: "dinner", place: "Estela, Nolita", note: "late dinner, I've had this one saved for months.", startsAt: hours(-0.3), openSpots: 3, bringing: 0, rsvps: [ME, "theo", "naomi"], photos: [] },
@@ -53,6 +53,7 @@ function seed(): DemoState {
       // open to you
       { id: "p-paint", hostId: "iris", kind: "painting", place: "Brooklyn Brush, Williamsburg", note: "", startsAt: nyAt(2, 19), openSpots: 4, bringing: 0, rsvps: ["theo", "sofia"], photos: [] },
       { id: "p-supper", hostId: "sofia", kind: "dinner", place: "Supper club, Bed-Stuy", note: "long table, family style. bring nothing.", startsAt: nyAt(5, 20), openSpots: 6, bringing: 0, rsvps: ["lena", "marcus", "naomi", "iris"], photos: [] },
+      { id: "p-net", hostId: "marcus", kind: "networking", topic: "finance", place: "Bryant Park Grill, Midtown", note: "breakfast before the markets open. buy-side, banks, anyone curious.", startsAt: nyAt(2, 8), openSpots: 4, bringing: 0, rsvps: ["sofia", "lena"], photos: [] },
       { id: "p-sauna", hostId: "theo", kind: "sauna", place: "Bathhouse, Flatiron", note: "cold plunge is optional. mostly.", startsAt: nyAt(4, 17), openSpots: 3, bringing: 0, rsvps: [], photos: [] },
       { id: "p-gallery", hostId: "sofia", kind: "gallery", place: "Chelsea, 24th st openings", note: "bringing my roommate, she knows everyone at these.", startsAt: nyAt(3, 18), openSpots: 3, bringing: 1, rsvps: ["naomi"], photos: [] },
       // not your mutual's plan: never shown
@@ -84,7 +85,7 @@ function status(p: DemoPlan): PlanStatus | "off" {
 function view(p: DemoPlan): PlanView {
   return {
     id: p.id, kind: p.kind, place: p.place, note: p.note || null, startsAt: p.startsAt, openSpots: p.openSpots,
-    taken: p.rsvps.length, bringing: p.bringing, isHost: p.hostId === ME, joined: p.rsvps.includes(ME), status: status(p) as PlanStatus,
+    taken: p.rsvps.length, bringing: p.bringing, topic: p.topic ?? null, isHost: p.hostId === ME, joined: p.rsvps.includes(ME), status: status(p) as PlanStatus,
   };
 }
 

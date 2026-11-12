@@ -1,4 +1,4 @@
-import { kindLabel, TIME_ZONE } from "@/lib/app/kinds";
+import { kindLabel, topicLabel, TIME_ZONE } from "@/lib/app/kinds";
 import type { PlanSignal, PlanView, Prefs } from "@/lib/app/types";
 
 export const TIMES = [
@@ -64,7 +64,10 @@ export function rankPlans(plans: PlanView[], prefs: Prefs | null, signals?: Map<
     const why: string[] = [];
     let score = 0;
     if (prefs) {
-      if (prefs.kinds.includes(plan.kind)) {
+      if (plan.kind === "networking" && plan.topic && prefs.topics?.includes(plan.topic)) {
+        score += 3;
+        why.push(`your field: ${topicLabel(plan.topic)}`);
+      } else if (prefs.kinds.includes(plan.kind)) {
         score += 3;
         why.push(`you like ${kindLabel(plan.kind)}`);
       }

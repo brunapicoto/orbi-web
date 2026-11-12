@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { savePrefs, type FormState } from "@/app/app/actions";
 import { KindIcon } from "@/components/app/KindIcon";
-import { KINDS } from "@/lib/app/kinds";
+import { KINDS, TOPICS } from "@/lib/app/kinds";
 import { AREAS, SIZES, TIMES } from "@/lib/app/rank";
 import type { Prefs } from "@/lib/app/types";
 
@@ -26,6 +26,15 @@ export function PrefsForm({ prefs, next, first }: { prefs: Prefs | null; next?: 
               <KindIcon kind={k.id} className="h-4 w-4" />
               {k.label}
             </span>
+          </label>
+        ))}
+      </Group>
+
+      <Group legend="your field" hint="for networking plans · optional">
+        {TOPICS.map((t) => (
+          <label key={t.id} className="cursor-pointer">
+            <input type="checkbox" name="topics" value={t.id} defaultChecked={has(prefs?.topics, t.id)} className="peer sr-only" />
+            <span className={chip}>{t.label}</span>
           </label>
         ))}
       </Group>

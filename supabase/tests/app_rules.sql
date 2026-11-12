@@ -184,6 +184,17 @@ select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
 select pg_temp.check(plan_group_mutuals('11111111-0000-0000-0000-000000000005') = 1, 'at the reveal Bia sees one exact number for the group: 1 friend in common (Eva)');
 reset role;
 
+-- ---------------------------------------------------------------- networking plans
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+insert into plans (id, kind, topic, place, starts_at, open_spots) values ('11111111-0000-0000-0000-000000000007','networking','finance','Midtown coffee', now() + interval '2 days', 3);
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check((select topic from my_plans() where id = '11111111-0000-0000-0000-000000000007') = 'finance', 'a networking plan shows its field (finance)');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.expect_fail($$insert into plans (kind, topic, place, starts_at, open_spots) values ('dinner','finance','Lilia', now() + interval '1 day', 3)$$, 'only networking plans have a field');
+select pg_temp.expect_fail($$insert into plans (kind, topic, place, starts_at, open_spots) values ('networking','crypto bros','Midtown', now() + interval '1 day', 3)$$, 'only known fields');
+reset role;
+
 -- ---------------------------------------------------------------- memories you add yourself
 set role authenticated;
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');

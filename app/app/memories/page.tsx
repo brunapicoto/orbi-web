@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { KindIcon } from "@/components/app/KindIcon";
-import { KINDS, formatWhen, kindLabel } from "@/lib/app/kinds";
+import { KINDS, formatWhen, planLabel } from "@/lib/app/kinds";
 import { requireMe } from "@/lib/app/session";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +13,8 @@ export default async function Memories({ searchParams }: { searchParams: Promise
   const items: Item[] = [
     ...plans
       .filter((p) => p.status === "past" && (p.isHost || p.joined))
-      .map((p) => ({ key: `p-${p.id}`, id: p.id, href: `/app/plan/${p.id}`, kind: p.kind, place: p.place, when: p.startsAt, whenLabel: formatWhen(p.startsAt), count: `${p.taken + 1 + p.bringing} were there`, source: "plan" as const })),
-    ...added.map((m) => ({ key: `m-${m.id}`, id: m.id, href: `/app/memories/${m.id}`, kind: m.kind, place: m.place, when: `${m.happenedOn}T12:00:00`, whenLabel: dayLabel(m.happenedOn), count: m.withNames.length ? `with ${m.withNames.map((n) => n.toLowerCase()).join(", ")}` : "added by you", source: "memory" as const })),
+      .map((p) => ({ key: `p-${p.id}`, id: p.id, href: `/app/plan/${p.id}`, kind: p.kind, topic: p.topic, place: p.place, when: p.startsAt, whenLabel: formatWhen(p.startsAt), count: `${p.taken + 1 + p.bringing} were there`, source: "plan" as const })),
+    ...added.map((m) => ({ key: `m-${m.id}`, id: m.id, href: `/app/memories/${m.id}`, kind: m.kind, topic: null, place: m.place, when: `${m.happenedOn}T12:00:00`, whenLabel: dayLabel(m.happenedOn), count: m.withNames.length ? `with ${m.withNames.map((n) => n.toLowerCase()).join(", ")}` : "added by you", source: "memory" as const })),
   ].sort((a, b) => b.when.localeCompare(a.when));
   const kindsHere = KINDS.filter((k) => items.some((p) => p.kind === k.id));
   const active = kind && kindsHere.some((k) => k.id === kind) ? kind : null;
@@ -84,7 +84,7 @@ export default async function Memories({ searchParams }: { searchParams: Promise
                   <div className="flex items-center justify-between px-5 py-3.5">
                     <span className="mono flex items-center gap-2 text-lavender">
                       <KindIcon kind={p.kind} className="h-4 w-4" />
-                      {kindLabel(p.kind)}
+                      {planLabel(p)}
                     </span>
                     <span className="mono text-muted-2">
                       {p.count}{cover ? "" : " · add a photo"}
@@ -103,7 +103,7 @@ export default async function Memories({ searchParams }: { searchParams: Promise
 }
 
 type Item = {
-  key: string; id: string; href: string; kind: string; place: string; when: string; whenLabel: string; count: string; source: "plan" | "memory";
+  key: string; id: string; href: string; kind: string; topic: string | null; place: string; when: string; whenLabel: string; count: string; source: "plan" | "memory";
 };
 
 const dayLabel = (d: string) =>

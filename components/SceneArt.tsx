@@ -258,3 +258,33 @@ export function ParkArt() {
     </svg>
   );
 }
+
+export function NetworkingArt() {
+  const cup = (x: number, y: number) => (
+    <g fill="none" stroke={FG} strokeWidth={1.4} strokeLinejoin="round">
+      <path d={`M${x - 5} ${y}h10l-1.5 11h-7z`} fill={FG} />
+      <path d={`M${x - 2} ${y - 4}c-1-2 1-3 0-5M${x + 2} ${y - 4}c-1-2 1-3 0-5`} stroke={RING} />
+    </g>
+  );
+  return (
+    <svg viewBox="0 0 200 250" className="h-full w-full" role="img" aria-label="people talking around a high table with coffee, city windows behind them">
+      {/* office windows */}
+      {[18, 66, 114, 162].map((x) => (
+        <rect key={x} x={x} y="18" width="22" height="56" rx="2" fill="none" stroke={RING} strokeWidth={1} />
+      ))}
+      <path d="M18 46h22M66 46h22M114 46h22M162 46h22" stroke={RING} strokeWidth={1} />
+      <Person x={46} y={96} s={0.9} />
+      <Person x={86} y={88} s={0.9} />
+      <Person x={124} y={92} s={0.9} />
+      <Person x={160} y={98} s={0.85} empty />
+      {/* high table */}
+      <ellipse cx="100" cy="150" rx="52" ry="7" fill={FG} />
+      <line x1="100" y1="157" x2="100" y2="210" stroke={FG} strokeWidth={2} />
+      <line x1="82" y1="210" x2="118" y2="210" stroke={FG} strokeWidth={2} strokeLinecap="round" />
+      {cup(78, 132)}
+      {cup(104, 130)}
+      {cup(126, 133)}
+      <line x1="8" y1="226" x2="192" y2="226" stroke={RING} strokeWidth={1} />
+    </svg>
+  );
+}
