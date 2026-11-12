@@ -95,6 +95,11 @@ function sceneSlots(): [SceneSlot, SceneSlot] {
   ];
 }
 
+// How-it-works illustrations in /public/how/ (step-1.jpg, step-2.jpg, step-3.jpg).
+function stepImages(): boolean[] {
+  return [1, 2, 3].map((n) => fs.existsSync(path.join(process.cwd(), "public", "how", `step-${n}.jpg`)));
+}
+
 export default function Home() {
   return (
     <>
@@ -148,7 +153,7 @@ export default function Home() {
           <h2 id="how-title" className="sr-only">
             how it works
           </h2>
-          <HowItWorks />
+          <HowItWorks images={stepImages()} />
         </Section>
 
         {/* 5. any plan */}
