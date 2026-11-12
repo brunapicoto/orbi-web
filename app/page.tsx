@@ -1,9 +1,11 @@
+import fs from "node:fs";
+import path from "node:path";
 import { Collage } from "@/components/Collage";
 import { Faq } from "@/components/Faq";
 import { Footer } from "@/components/Footer";
+import { Hero, type SceneSlot } from "@/components/Hero";
 import { HowItWorks } from "@/components/HowItWorks";
 import { Nav } from "@/components/Nav";
-import { OrbitDial } from "@/components/OrbitDial";
 import { PlanTicket } from "@/components/PlanTicket";
 import { Reveal } from "@/components/Reveal";
 import { Section } from "@/components/Section";
@@ -84,35 +86,22 @@ const FAQ = [
   { q: "how much does it cost?", a: "Free for users." },
 ];
 
+// Illustrations for the hero cards. PLACEHOLDER until the files exist in /public/scenes/.
+function sceneSlots(): [SceneSlot, SceneSlot] {
+  const has = (f: string) => fs.existsSync(path.join(process.cwd(), "public", "scenes", f));
+  return [
+    { file: "scene-3.jpg", label: "the same street, together", alt: "friends in small groups out together on a new york street", available: has("scene-3.jpg") },
+    { file: "scene-1.jpg", label: "orbi café no. 1", alt: "friends gathered outside a corner café at night", available: has("scene-1.jpg") },
+  ];
+}
+
 export default function Home() {
   return (
     <>
       <Nav />
       <main id="main">
         {/* 1. hero */}
-        <section id="top" aria-labelledby="hero-title" className="gutter relative overflow-hidden bg-bordeaux pb-20 pt-28 md:pb-28 md:pt-36">
-          <div className="mx-auto grid w-full max-w-6xl items-center gap-12 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-            <div className="flex flex-col gap-7">
-              <h1 id="hero-title" className="display text-[clamp(120px,26vw,300px)] leading-[0.8] tracking-[-0.06em] text-lavender">
-                orbi
-              </h1>
-              <p className="display text-[clamp(1.9rem,4.4vw,3.25rem)] text-bone">from mutuals to real connections.</p>
-              <p className="max-w-[34ch] text-lavender-soft">any plan, three or more people, and nobody has to ask first.</p>
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-3 pt-2">
-                <a
-                  href="#waitlist"
-                  className="mono inline-flex min-h-14 items-center rounded-full bg-bone px-8 text-[14px] text-bordeaux transition-colors hover:bg-lavender hover:text-ink"
-                >
-                  join the waitlist
-                </a>
-                <span className="mono text-lavender-soft">starting in new york</span>
-              </div>
-            </div>
-            <div className="mx-auto w-[min(78vw,420px)] md:w-full md:max-w-[460px]">
-              <OrbitDial ring="rgba(201,210,250,0.35)" label="the orbit dial: a plan in the middle with three people around it" />
-            </div>
-          </div>
-        </section>
+        <Hero scenes={sceneSlots()} />
 
         {/* 2. the problem */}
         <Section id="problem" labelledBy="problem-title" label="the problem">

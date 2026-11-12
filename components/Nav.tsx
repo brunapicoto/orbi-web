@@ -1,26 +1,16 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import { NAV_LINKS } from "@/lib/site";
 
+/** Floating nav card. */
 export function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
     <header
-      className={`gutter fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
-        scrolled ? "bg-ink/85 backdrop-blur-md" : "bg-transparent"
-      }`}
-      style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+      className="fixed inset-x-0 top-0 z-50 px-3 md:px-6"
+      style={{ paddingTop: "max(12px, env(safe-area-inset-top, 0px))", paddingLeft: "max(12px, env(safe-area-inset-left, 0px))", paddingRight: "max(12px, env(safe-area-inset-right, 0px))" }}
     >
-      <nav aria-label="main" className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 md:h-20">
+      <nav
+        aria-label="main"
+        className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 rounded-2xl bg-ink/85 px-5 shadow-[0_20px_60px_rgba(14,12,13,0.35)] ring-1 ring-line backdrop-blur-md md:h-[72px] md:px-7"
+      >
         <a href="#top" className="display text-[26px] tracking-[-0.04em] text-lavender">
           orbi
         </a>
