@@ -13,6 +13,7 @@ type DemoState = {
   me: { id: string; firstName: string | null; inviteCode: string };
   people: Record<string, string>;
   connections: string[];
+  mutualsWithMe: Record<string, number>;
   plans: DemoPlan[];
 };
 
@@ -31,6 +32,8 @@ function seed(): DemoState {
     me: { id: ME, firstName: "alex", inviteCode: "demo4orbi" },
     people: { lena: "Lena", marcus: "Marcus", iris: "Iris", theo: "Theo", sofia: "Sofia", naomi: "Naomi", eva: "Eva" },
     connections: ["lena", "marcus", "iris", "theo", "sofia", "naomi"],
+    // friends each person has in common with you (example numbers)
+    mutualsWithMe: { lena: 42, marcus: 18, iris: 9, theo: 65, sofia: 23, naomi: 31, eva: 0 },
     plans: [
       // happening now: the reveal
       { id: "p-dinner", hostId: "lena", kind: "dinner", place: "Estela, Nolita", note: "late dinner, I've had this one saved for months.", startsAt: hours(-0.3), openSpots: 3, rsvps: [ME, "theo", "naomi"], photos: [] },
@@ -38,6 +41,7 @@ function seed(): DemoState {
       { id: "p-run", hostId: "marcus", kind: "run", place: "East River loop", note: "easy 5k pace. coffee after.", startsAt: nyAt(3, 8), openSpots: 4, rsvps: [ME, "iris"], photos: [] },
       // open to you
       { id: "p-paint", hostId: "iris", kind: "painting", place: "Brooklyn Brush, Williamsburg", note: "", startsAt: nyAt(2, 19), openSpots: 4, rsvps: ["theo", "sofia"], photos: [] },
+      { id: "p-supper", hostId: "sofia", kind: "dinner", place: "Supper club, Bed-Stuy", note: "long table, family style. bring nothing.", startsAt: nyAt(5, 20), openSpots: 6, rsvps: ["lena", "marcus", "naomi", "iris"], photos: [] },
       { id: "p-sauna", hostId: "theo", kind: "sauna", place: "Bathhouse, Flatiron", note: "cold plunge is optional. mostly.", startsAt: nyAt(4, 17), openSpots: 3, rsvps: [], photos: [] },
       { id: "p-gallery", hostId: "sofia", kind: "gallery", place: "Chelsea, 24th st openings", note: "", startsAt: nyAt(3, 18), openSpots: 3, rsvps: ["naomi"], photos: [] },
       // not your mutual's plan: never shown
@@ -84,6 +88,16 @@ const find = (id: string) => {
   return p;
 };
 
+// same bands as mutual_band() in supabase/app.sql
+function band(n: number) {
+  if (n < 1) return null;
+  if (n >= 40) return "40+";
+  if (n >= 20) return "20+";
+  if (n >= 10) return "10+";
+  if (n >= 5) return "5+";
+  return "a few";
+}
+
 const nameOf = (id: string) => (id === ME ? state().me.firstName ?? "you" : state().people[id]);
 
 export async function demoStore(): Promise<Store> {
@@ -109,6 +123,21 @@ export async function demoStore(): Promise<Store> {
       return [p.hostId, ...p.rsvps]
         .map((uid) => ({ id: uid, firstName: nameOf(uid), isHost: uid === p.hostId, isMe: uid === ME }))
         .sort((a, b) => Number(b.isHost) - Number(a.isHost) || a.firstName.localeCompare(b.firstName));
+    },
+    async groupMutuals(id) {
+      const p = find(id);
+      const inPlan = p.hostId === ME || p.rsvps.includes(ME);
+      if (!inPlan || new Date(p.startsAt).getTime() > Date.now() || p.rsvps.length < 2) return 0;
+      // demo stand-in for "different friends in common with the group": overlaps shrink the sum
+      const counts = [p.hostId, ...p.rsvps].filter((u) => u !== ME).map((u) => s.mutualsWithMe[u] ?? 0);
+      return Math.max(Math.max(0, ...counts), Math.round(counts.reduce((a, b) => a + b, 0) * 0.6));
+    },
+    async signal(id) {
+      const p = s.plans.find((x) => x.id === id);
+      if (!p || !visible(p)) return null;
+      const others = [p.hostId, ...p.rsvps].filter((u) => u !== ME);
+      const avg = others.reduce((t, u) => t + (s.mutualsWithMe[u] ?? 0), 0) / Math.max(others.length, 1);
+      return { others: others.length, band: others.length >= 4 ? band(avg) : null };
     },
     async createPlan(input) {
       if (new Date(input.startsAt).getTime() <= Date.now()) throw new Error("plan cannot start in the past");

@@ -108,9 +108,60 @@ select pg_temp.check((select count(*) from plan_photos) = 0, 'or its record');
 select pg_temp.expect_fail($$insert into storage.objects (bucket_id, name) values ('plan-photos', '11111111-0000-0000-0000-000000000001/c.jpg')$$, 'Duda cannot upload to a plan she was not in');
 reset role;
 
+
+-- ---------------------------------------------------------------- trust signal (group level only)
+reset role;
+insert into auth.users values ('00000000-0000-0000-0000-00000000000f'),('00000000-0000-0000-0000-000000000010');
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000f'); insert into profiles (id, first_name) values (auth.uid(), 'Fabi');
+select accept_invite((select invite_code from codes where first_name='Ana'));
+select pg_temp.as_user('00000000-0000-0000-0000-000000000010'); insert into profiles (id, first_name) values (auth.uid(), 'Gabi');
+select accept_invite((select invite_code from codes where first_name='Ana'));
+-- Bia and Caio also know each other, so Bia shares friends with the group
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c'); select accept_invite((select invite_code from codes where first_name='Bia'));
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+insert into plans (id, kind, place, starts_at, open_spots) values ('11111111-0000-0000-0000-000000000005','dinner','Lilia', now() + interval '1 day', 6);
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c'); select join_plan('11111111-0000-0000-0000-000000000005');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000d'); select join_plan('11111111-0000-0000-0000-000000000005');
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check((select others from plan_signal('11111111-0000-0000-0000-000000000005')) = 3, 'Bia sees how many others are in (3)');
+select pg_temp.check((select band from plan_signal('11111111-0000-0000-0000-000000000005')) is null, 'with fewer than 4 others there is no mutual-friends band');
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000f'); select join_plan('11111111-0000-0000-0000-000000000005');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000010'); select join_plan('11111111-0000-0000-0000-000000000005');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check((select band from plan_signal('11111111-0000-0000-0000-000000000005')) = 'a few', 'with 5 others Bia gets a coarse band ("a few"), not a number');
+select pg_temp.check(pg_get_function_result('public.plan_signal(uuid)'::regprocedure) not ilike '%user%', 'plan_signal returns no person, only the group');
+select pg_temp.expect_fail($$select mutual_count('00000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-00000000000c')$$, 'the app cannot ask for a mutual count about one person');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000e');
+select pg_temp.check((select count(*) from plan_signal('11111111-0000-0000-0000-000000000005')) = 0, 'Eva (outside the network) gets no signal at all');
+
+-- after the reveal, one exact number for the whole group is the icebreaker
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b'); select join_plan('11111111-0000-0000-0000-000000000005');
+select pg_temp.check(plan_group_mutuals('11111111-0000-0000-0000-000000000005') = 0, 'no group number before start (0 = nothing shown)');
+reset role;
+update plans set starts_at = now() - interval '10 minutes' where id = '11111111-0000-0000-0000-000000000005';
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+-- Bia's friends: Ana, Eva, Caio. Outside the plan only Eva counts, and Eva is nobody's friend in the group.
+select pg_temp.check(plan_group_mutuals('11111111-0000-0000-0000-000000000005') = 0, 'friends already in the plan are not counted');
+select pg_temp.check(pg_get_function_result('public.plan_people(uuid)'::regprocedure) not ilike '%mutual%', 'the reveal list has no per-person friend counts');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000e');
+select pg_temp.check(plan_group_mutuals('11111111-0000-0000-0000-000000000005') = 0, 'Eva, not in the plan, gets nothing');
+reset role;
+-- give Bia a friend outside the plan who knows Caio: Eva accepts Caio's link
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000e'); select accept_invite((select invite_code from codes where first_name='Caio'));
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check(plan_group_mutuals('11111111-0000-0000-0000-000000000005') = 1, 'at the reveal Bia sees one exact number for the group: 1 friend in common (Eva)');
+reset role;
+
 -- signed-out visitors
 set role anon;
 select pg_temp.expect_fail($$select * from my_plans()$$, 'signed-out visitors cannot call the app functions');
 select pg_temp.expect_fail($$select * from profiles$$, 'or read profiles');
+select pg_temp.expect_fail($$select * from plan_signal('11111111-0000-0000-0000-000000000005')$$, 'or get a trust signal');
 reset role;
 \echo ALL TESTS PASSED

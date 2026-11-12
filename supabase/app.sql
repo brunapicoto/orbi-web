@@ -92,6 +92,30 @@ as $$
   select exists (select 1 from plans where id = p and starts_at <= now());
 $$;
 
+-- friends x and y have in common (internal, not callable by the app)
+create or replace function public.mutual_count(x uuid, y uuid)
+returns int
+language sql stable security definer set search_path = public
+as $$
+  with nx as (select case when user_a = x then user_b else user_a end as id from connections where x in (user_a, user_b)),
+       ny as (select case when user_a = y then user_b else user_a end as id from connections where y in (user_a, user_b))
+  select count(*)::int from nx join ny using (id);
+$$;
+
+create or replace function public.mutual_band(n numeric)
+returns text
+language sql immutable
+as $$
+  select case
+    when n is null or n < 1 then null
+    when n >= 40 then '40+'
+    when n >= 20 then '20+'
+    when n >= 10 then '10+'
+    when n >= 5 then '5+'
+    else 'a few'
+  end;
+$$;
+
 -- open: still filling, not yet 3 · on: 3+ and not started · live: started, within 6h
 -- past: on and over · off: start time passed without reaching 3 (never shown)
 create or replace function public.plan_status(starts timestamptz, taken int)
@@ -225,7 +249,9 @@ as $$
 $$;
 
 -- the reveal: names, only for people in the plan, only from start time, only if it reached 3
-create or replace function public.plan_people(p uuid)
+-- the reveal: names, only for people in the plan, only from start time, only if it reached 3
+drop function if exists public.plan_people(uuid);
+create function public.plan_people(p uuid)
 returns table (user_id uuid, first_name text, is_host boolean, is_me boolean)
 language sql stable security definer set search_path = public
 as $$
@@ -237,6 +263,66 @@ as $$
     and pl.starts_at <= now()
     and plan_taken(p) >= 2
   order by (pr.id = pl.host_id) desc, pr.first_name;
+$$;
+
+-- the icebreaker at the reveal: one exact number for the whole group, never per person.
+-- how many different people in your network are friends with at least one other person in the plan.
+create or replace function public.plan_group_mutuals(p uuid)
+returns int
+language sql stable security definer set search_path = public
+as $$
+  with pl as (select * from plans where id = p),
+  members as (
+    select host_id as id from pl
+    union select user_id from rsvps where plan_id = p
+  ),
+  others as (select id from members where id <> auth.uid()),
+  my_friends as (
+    select case when user_a = auth.uid() then user_b else user_a end as id
+    from connections where auth.uid() in (user_a, user_b)
+  ),
+  their_friends as (
+    select case when c.user_a = o.id then c.user_b else c.user_a end as id
+    from connections c join others o on o.id in (c.user_a, c.user_b)
+  )
+  select count(distinct f.id)::int
+  from my_friends f
+  join their_friends t on t.id = f.id
+  where f.id not in (select id from members)
+    and is_in_plan(p, auth.uid())
+    and (select starts_at from pl) <= now()
+    and plan_taken(p) >= 2;
+$$;
+
+-- ---------------------------------------------------------------- trust signal, at group level only
+-- Before the reveal people see a signal about the whole group, never about one person:
+--   * everyone in a plan you can see is at most 2 steps from you (you, the host, them)
+--   * the average number of friends you share with the others, as a coarse band
+--   * the band only shows once there are 4 or more other people, so it can't point at anyone
+
+create or replace function public.plan_signal(p uuid)
+returns table (others int, band text)
+language plpgsql stable security definer set search_path = public
+as $$
+declare
+  me uuid := auth.uid();
+  pl plans%rowtype;
+  n int;
+  avg_m numeric;
+begin
+  if me is null then return; end if;
+  select * into pl from plans where id = p;
+  if not found then return; end if;
+  if not (pl.host_id = me or exists (select 1 from rsvps where plan_id = p and user_id = me) or are_connected(pl.host_id, me)) then
+    return;
+  end if;
+  select count(*), avg(mutual_count(me, m.id)) into n, avg_m
+  from (select pl.host_id as id union select user_id from rsvps where plan_id = p) m
+  where m.id <> me;
+  others := n;
+  band := case when n >= 4 then mutual_band(avg_m) else null end;
+  return next;
+end;
 $$;
 
 create or replace function public.accept_invite(code text)
@@ -267,6 +353,8 @@ as $$
   select first_name from profiles where invite_code = lower(btrim(code));
 $$;
 
+revoke all on function public.mutual_count(uuid, uuid), public.plan_signal(uuid), public.plan_group_mutuals(uuid) from public, anon, authenticated;
+grant execute on function public.plan_signal(uuid), public.plan_group_mutuals(uuid) to authenticated;
 revoke all on function public.my_plans(), public.join_plan(uuid), public.leave_plan(uuid),
   public.plan_people(uuid), public.accept_invite(text), public.invite_name(text),
   public.are_connected(uuid, uuid), public.plan_taken(uuid), public.is_in_plan(uuid, uuid),

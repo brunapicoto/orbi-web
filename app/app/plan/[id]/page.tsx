@@ -6,7 +6,8 @@ import { JoinButton } from "@/components/app/JoinButton";
 import { KindIcon } from "@/components/app/KindIcon";
 import { PeopleReveal } from "@/components/app/PeopleReveal";
 import { PhotoUpload } from "@/components/app/PhotoUpload";
-import { SpotDots, planLine, whoLine } from "@/components/app/PlanCard";
+import { SpotDots, TrustDot, planLine, whoLine } from "@/components/app/PlanCard";
+import { trustLines } from "@/lib/app/trust";
 import { formatWhen, kindLabel } from "@/lib/app/kinds";
 import { requireMe } from "@/lib/app/session";
 
@@ -23,6 +24,8 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
   const inPlan = plan.isHost || plan.joined;
   const people = started && inPlan ? await store.people(id) : [];
   const photos = started && inPlan ? await store.photos(id) : [];
+  const groupMutuals = started && inPlan ? await store.groupMutuals(id) : 0;
+  const trust = started ? null : trustLines(await store.signal(id));
   const full = plan.taken >= plan.openSpots;
   const phase: DialPhase = started ? "reveal" : plan.taken > 0 ? "blind" : "plan";
 
@@ -66,6 +69,19 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
               ? `it's on: ${plan.taken + 1} people so far, ${planLine(plan)}. names stay sealed until it starts.`
               : `${plan.taken + 1} of 3 needed so far, ${planLine(plan)}. if it doesn't reach 3, it quietly doesn't happen.`}
         </p>
+        {trust ? (
+          <div className="flex flex-col gap-1.5 border-t border-dashed border-line pt-4">
+            <p className="mono flex items-center gap-2 text-lavender-soft">
+              <TrustDot />
+              {trust.base}
+            </p>
+            <p className="text-[15px] text-muted">
+              {trust.band
+                ? `${trust.band}. counted for the whole group, never per person.`
+                : "friends in common show up once the group is big enough to keep everyone anonymous."}
+            </p>
+          </div>
+        ) : null}
       </section>
 
       {!started && !plan.isHost ? <JoinButton planId={plan.id} joined={plan.joined} full={full && !plan.joined} /> : null}
@@ -84,6 +100,14 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
             {plan.status === "live" ? "who's here" : "who was there"}
           </h2>
           <PeopleReveal people={people} animate={plan.status === "live"} />
+          {groupMutuals > 0 ? (
+            <div className="flex items-baseline gap-4 rounded-3xl bg-bordeaux px-6 py-5">
+              <span className="display text-[3.25rem] leading-none text-lavender">{groupMutuals}</span>
+              <span className="text-[16px] text-lavender-soft">
+                {groupMutuals === 1 ? "friend" : "friends"} in common between you and this group.
+              </span>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

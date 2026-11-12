@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { KindIcon } from "@/components/app/KindIcon";
 import { formatWhen, kindLabel } from "@/lib/app/kinds";
-import type { PlanView } from "@/lib/app/types";
+import { trustLines } from "@/lib/app/trust";
+import type { PlanSignal, PlanView } from "@/lib/app/types";
 
 /** Spots as dots: filled for people in (host included), dashed for open. No names. */
 export function SpotDots({ plan }: { plan: PlanView }) {
@@ -35,7 +36,19 @@ export function whoLine(plan: PlanView) {
   return "someone is hosting";
 }
 
-export function PlanCard({ plan }: { plan: PlanView }) {
+export function TrustDot() {
+  return (
+    <svg viewBox="0 0 120 120" className="h-3.5 w-3.5 shrink-0" aria-hidden="true">
+      <circle cx="60" cy="60" r="19" fill="currentColor" />
+      <circle cx="60" cy="29" r="8" fill="currentColor" />
+      <circle cx="86.8" cy="75.5" r="8" fill="currentColor" />
+      <circle cx="33.2" cy="75.5" r="8" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function PlanCard({ plan, signal }: { plan: PlanView; signal?: PlanSignal | null }) {
+  const trust = signal !== undefined ? trustLines(signal) : null;
   const happening = plan.status === "on" || plan.status === "live";
   return (
     <Link
@@ -62,6 +75,12 @@ export function PlanCard({ plan }: { plan: PlanView }) {
           </span>
         </span>
       </div>
+      {trust ? (
+        <p className="mono -mt-1 flex items-center gap-2 text-lavender-soft">
+          <TrustDot />
+          {trust.band ?? trust.base}
+        </p>
+      ) : null}
     </Link>
   );
 }

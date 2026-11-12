@@ -2,7 +2,7 @@ import Link from "next/link";
 import { OrbitDial } from "@/components/OrbitDial";
 import { PlanCard } from "@/components/app/PlanCard";
 import { requireMe } from "@/lib/app/session";
-import type { PlanView } from "@/lib/app/types";
+import type { PlanSignal, PlanView } from "@/lib/app/types";
 
 export const dynamic = "force-dynamic";
 
@@ -14,19 +14,24 @@ export default async function PlansHome() {
   const mine = plans.filter((p) => (p.isHost || p.joined) && (p.status === "open" || p.status === "on"));
   const open = plans.filter((p) => !p.isHost && !p.joined && (p.status === "open" || p.status === "on") && p.taken < p.openSpots);
   const past = plans.filter((p) => p.status === "past").reverse();
+  // group-level trust signal for upcoming plans (never about one person)
+  const upcoming = [...mine, ...open];
+  const signals = new Map(await Promise.all(upcoming.map(async (p) => [p.id, await store.signal(p.id)] as const)));
 
   return (
     <div className="flex flex-col gap-12">
       <header className="flex flex-col gap-2">
         <p className="mono text-muted-2">hi {me.firstName.toLowerCase()}</p>
         <h1 className="display text-[3rem]">what&apos;s the plan?</h1>
+        <p className="text-[16px] text-muted">everyone here is from your network.</p>
       </header>
 
       <Group title="happening now" plans={now} />
-      <Group title="you're going" plans={mine} empty="nothing yet. join a plan below, or post one." />
+      <Group title="you're going" plans={mine} signals={signals} empty="nothing yet. join a plan below, or post one." />
       <Group
         title="open to you"
         plans={open}
+        signals={signals}
         empty={
           <span>
             no open plans from your mutuals right now.{" "}
@@ -58,7 +63,7 @@ export default async function PlansHome() {
   );
 }
 
-function Group({ title, plans, empty }: { title: string; plans: PlanView[]; empty?: React.ReactNode }) {
+function Group({ title, plans, empty, signals }: { title: string; plans: PlanView[]; empty?: React.ReactNode; signals?: Map<string, PlanSignal | null> }) {
   if (!plans.length && !empty) return null;
   return (
     <section className="flex flex-col gap-4" aria-label={title}>
@@ -67,7 +72,7 @@ function Group({ title, plans, empty }: { title: string; plans: PlanView[]; empt
         <ul className="flex flex-col gap-3">
           {plans.map((p) => (
             <li key={p.id}>
-              <PlanCard plan={p} />
+              <PlanCard plan={p} signal={signals ? signals.get(p.id) ?? null : undefined} />
             </li>
           ))}
         </ul>

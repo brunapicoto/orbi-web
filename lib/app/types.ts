@@ -16,6 +16,9 @@ export type PlanView = {
 
 export type Person = { id: string; firstName: string; isHost: boolean; isMe: boolean };
 
+/** Group-level trust signal: never about one person. `band` is null below the anonymity threshold. */
+export type PlanSignal = { others: number; band: string | null };
+
 export type Me = { id: string; email: string | null; firstName: string | null; inviteCode: string | null };
 
 export type Photo = { id: string; url: string };

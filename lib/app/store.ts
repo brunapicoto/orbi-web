@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
 import { demoStore } from "@/lib/app/demo";
-import type { Me, NewPlan, Person, Photo, PlanStatus, PlanView } from "@/lib/app/types";
+import type { Me, NewPlan, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
 
 /** Everything the app reads and writes. Two implementations: Supabase, or demo data. */
 export interface Store {
@@ -12,6 +12,8 @@ export interface Store {
   plans(): Promise<PlanView[]>;
   plan(id: string): Promise<PlanView | null>;
   people(id: string): Promise<Person[]>;
+  signal(id: string): Promise<PlanSignal | null>;
+  groupMutuals(id: string): Promise<number>;
   createPlan(input: NewPlan): Promise<string>;
   cancelPlan(id: string): Promise<void>;
   join(id: string): Promise<void>;
@@ -90,6 +92,16 @@ async function supabaseStore(): Promise<Store> {
       return (data as { user_id: string; first_name: string; is_host: boolean; is_me: boolean }[]).map((r) => ({
         id: r.user_id, firstName: r.first_name, isHost: r.is_host, isMe: r.is_me,
       }));
+    },
+    async groupMutuals(id) {
+      const { data, error } = await sb.rpc("plan_group_mutuals", { p: id });
+      return error ? 0 : ((data as number | null) ?? 0);
+    },
+    async signal(id) {
+      const { data, error } = await sb.rpc("plan_signal", { p: id });
+      if (error || !data?.length) return null;
+      const row = (data as { others: number; band: string | null }[])[0];
+      return { others: row.others, band: row.band };
     },
     async createPlan(input) {
       const { data, error } = await sb
