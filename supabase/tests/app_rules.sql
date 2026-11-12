@@ -109,6 +109,32 @@ select pg_temp.expect_fail($$insert into storage.objects (bucket_id, name) value
 reset role;
 
 
+-- ---------------------------------------------------------------- friends the host brings
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.expect_fail($$insert into plans (kind, place, starts_at, open_spots, bringing) values ('run','Hudson', now() + interval '1 day', 1, 0)$$, 'host + 1 open spot is too small (needs 3)');
+insert into plans (id, kind, place, starts_at, open_spots, bringing) values ('11111111-0000-0000-0000-000000000006','bar','Barcade', now() + interval '1 day', 1, 1);
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000d'); select join_plan('11111111-0000-0000-0000-000000000006');
+select pg_temp.check((select status from my_plans() where id='11111111-0000-0000-0000-000000000006') = 'on', 'host + 1 friend they bring + 1 yes = 3, so it is on');
+select pg_temp.check((select bringing from my_plans() where id='11111111-0000-0000-0000-000000000006') = 1, 'people see that the host is bringing 1 friend');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.expect_fail($$select join_plan('11111111-0000-0000-0000-000000000006')$$, 'the one open spot is taken');
+
+-- ---------------------------------------------------------------- keep in orbit (the dinner has started: Ana, Bia, Caio)
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check(keep_in_orbit('11111111-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000c') = 'picked', 'Bia quietly picks Caio');
+select pg_temp.check((select count(*) from profiles where first_name = 'Caio') = 0, 'a one-sided pick connects nobody');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c');
+select pg_temp.check((select count(*) from orbit_picks) = 0, 'Caio cannot see that Bia picked him');
+select pg_temp.check(keep_in_orbit('11111111-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000b') = 'connected', 'Caio picks Bia back: they are connected');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check((select count(*) from profiles where first_name = 'Caio') = 1, 'now Bia sees Caio in her orbit');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000d');
+select pg_temp.expect_fail($$select keep_in_orbit('11111111-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000b')$$, 'Duda was not at the dinner, she cannot pick from it');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.expect_fail($$select keep_in_orbit('11111111-0000-0000-0000-000000000003', '00000000-0000-0000-0000-00000000000c')$$, 'no picks before a plan starts');
+reset role;
+
 -- ---------------------------------------------------------------- trust signal (group level only)
 reset role;
 insert into auth.users values ('00000000-0000-0000-0000-00000000000f'),('00000000-0000-0000-0000-000000000010');

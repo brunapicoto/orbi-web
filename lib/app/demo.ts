@@ -15,6 +15,8 @@ type DemoState = {
   connections: string[];
   mutualsWithMe: Record<string, number>;
   plans: DemoPlan[];
+  /** keep-in-orbit picks, keyed "planId:picker" */
+  picks: Record<string, string[]>;
 };
 
 const ME = "me";
@@ -34,22 +36,26 @@ function seed(): DemoState {
     connections: ["lena", "marcus", "iris", "theo", "sofia", "naomi"],
     // friends each person has in common with you (example numbers)
     mutualsWithMe: { lena: 42, marcus: 18, iris: 9, theo: 65, sofia: 23, naomi: 31, eva: 0 },
+    // eva was at the comedy show and already picked you; pick her back and you connect
+    picks: { "p-past:eva": [ME] },
     plans: [
       // happening now: the reveal
-      { id: "p-dinner", hostId: "lena", kind: "dinner", place: "Estela, Nolita", note: "late dinner, I've had this one saved for months.", startsAt: hours(-0.3), openSpots: 3, rsvps: [ME, "theo", "naomi"], photos: [] },
+      { id: "p-dinner", hostId: "lena", kind: "dinner", place: "Estela, Nolita", note: "late dinner, I've had this one saved for months.", startsAt: hours(-0.3), openSpots: 3, bringing: 0, rsvps: [ME, "theo", "naomi"], photos: [] },
       // you're in, filling up
-      { id: "p-run", hostId: "marcus", kind: "run", place: "East River loop", note: "easy 5k pace. coffee after.", startsAt: nyAt(3, 8), openSpots: 4, rsvps: [ME, "iris"], photos: [] },
+      { id: "p-run", hostId: "marcus", kind: "run", place: "East River loop", note: "easy 5k pace. coffee after.", startsAt: nyAt(3, 8), openSpots: 4, bringing: 0, rsvps: [ME, "iris"], photos: [] },
       // open to you
-      { id: "p-paint", hostId: "iris", kind: "painting", place: "Brooklyn Brush, Williamsburg", note: "", startsAt: nyAt(2, 19), openSpots: 4, rsvps: ["theo", "sofia"], photos: [] },
-      { id: "p-supper", hostId: "sofia", kind: "dinner", place: "Supper club, Bed-Stuy", note: "long table, family style. bring nothing.", startsAt: nyAt(5, 20), openSpots: 6, rsvps: ["lena", "marcus", "naomi", "iris"], photos: [] },
-      { id: "p-sauna", hostId: "theo", kind: "sauna", place: "Bathhouse, Flatiron", note: "cold plunge is optional. mostly.", startsAt: nyAt(4, 17), openSpots: 3, rsvps: [], photos: [] },
-      { id: "p-gallery", hostId: "sofia", kind: "gallery", place: "Chelsea, 24th st openings", note: "", startsAt: nyAt(3, 18), openSpots: 3, rsvps: ["naomi"], photos: [] },
+      { id: "p-paint", hostId: "iris", kind: "painting", place: "Brooklyn Brush, Williamsburg", note: "", startsAt: nyAt(2, 19), openSpots: 4, bringing: 0, rsvps: ["theo", "sofia"], photos: [] },
+      { id: "p-supper", hostId: "sofia", kind: "dinner", place: "Supper club, Bed-Stuy", note: "long table, family style. bring nothing.", startsAt: nyAt(5, 20), openSpots: 6, bringing: 0, rsvps: ["lena", "marcus", "naomi", "iris"], photos: [] },
+      { id: "p-sauna", hostId: "theo", kind: "sauna", place: "Bathhouse, Flatiron", note: "cold plunge is optional. mostly.", startsAt: nyAt(4, 17), openSpots: 3, bringing: 0, rsvps: [], photos: [] },
+      { id: "p-gallery", hostId: "sofia", kind: "gallery", place: "Chelsea, 24th st openings", note: "bringing my roommate, she knows everyone at these.", startsAt: nyAt(3, 18), openSpots: 3, bringing: 1, rsvps: ["naomi"], photos: [] },
       // not your mutual's plan: never shown
-      { id: "p-hidden", hostId: "eva", kind: "drinks", place: "somewhere you can't see", note: "", startsAt: nyAt(2, 21), openSpots: 3, rsvps: [], photos: [] },
+      { id: "p-hidden", hostId: "eva", kind: "drinks", place: "somewhere you can't see", note: "", startsAt: nyAt(2, 21), openSpots: 3, bringing: 0, rsvps: [], photos: [] },
       // past
-      { id: "p-past", hostId: "naomi", kind: "show", place: "Comedy Cellar", note: "", startsAt: nyAt(-3, 21), openSpots: 3, rsvps: [ME, "lena", "marcus"], photos: [] },
+      { id: "p-past", hostId: "naomi", kind: "show", place: "Comedy Cellar", note: "", startsAt: nyAt(-3, 21), openSpots: 4, bringing: 0, rsvps: [ME, "lena", "marcus", "eva"], photos: [{ id: "ph-c", url: "/demo/comedy.jpg" }] },
+      { id: "p-past2", hostId: "theo", kind: "run", place: "Williamsburg Bridge loop", note: "", startsAt: nyAt(-10, 8), openSpots: 4, bringing: 0, rsvps: [ME, "marcus", "iris"], photos: [{ id: "ph-r", url: "/demo/run.jpg" }] },
+      { id: "p-past3", hostId: "iris", kind: "gallery", place: "Dia Beacon", note: "", startsAt: nyAt(-24, 13), openSpots: 3, bringing: 0, rsvps: [ME, "sofia", "naomi"], photos: [{ id: "ph-g", url: "/demo/gallery.jpg" }] },
       // didn't reach 3: gone
-      { id: "p-off", hostId: "lena", kind: "brunch", place: "a brunch that didn't happen", note: "", startsAt: nyAt(-2, 11), openSpots: 3, rsvps: [ME], photos: [] },
+      { id: "p-off", hostId: "lena", kind: "brunch", place: "a brunch that didn't happen", note: "", startsAt: nyAt(-2, 11), openSpots: 3, bringing: 0, rsvps: [ME], photos: [] },
     ],
   };
 }
@@ -62,16 +68,16 @@ const connected = (a: string, b: string) => a === ME ? state().connections.inclu
 function status(p: DemoPlan): PlanStatus | "off" {
   const start = new Date(p.startsAt).getTime();
   const now = Date.now();
-  const taken = p.rsvps.length;
-  if (now < start) return taken < 2 ? "open" : "on";
-  if (taken < 2) return "off";
+  const count = p.rsvps.length + p.bringing;
+  if (now < start) return count < 2 ? "open" : "on";
+  if (count < 2) return "off";
   return now < start + 6 * 3600_000 ? "live" : "past";
 }
 
 function view(p: DemoPlan): PlanView {
   return {
     id: p.id, kind: p.kind, place: p.place, note: p.note || null, startsAt: p.startsAt, openSpots: p.openSpots,
-    taken: p.rsvps.length, isHost: p.hostId === ME, joined: p.rsvps.includes(ME), status: status(p) as PlanStatus,
+    taken: p.rsvps.length, bringing: p.bringing, isHost: p.hostId === ME, joined: p.rsvps.includes(ME), status: status(p) as PlanStatus,
   };
 }
 
@@ -119,7 +125,7 @@ export async function demoStore(): Promise<Store> {
     async people(id) {
       const p = find(id);
       const inPlan = p.hostId === ME || p.rsvps.includes(ME);
-      if (!inPlan || new Date(p.startsAt).getTime() > Date.now() || p.rsvps.length < 2) return [];
+      if (!inPlan || new Date(p.startsAt).getTime() > Date.now() || p.rsvps.length + p.bringing < 2) return [];
       return [p.hostId, ...p.rsvps]
         .map((uid) => ({ id: uid, firstName: nameOf(uid), isHost: uid === p.hostId, isMe: uid === ME }))
         .sort((a, b) => Number(b.isHost) - Number(a.isHost) || a.firstName.localeCompare(b.firstName));
@@ -127,10 +133,30 @@ export async function demoStore(): Promise<Store> {
     async groupMutuals(id) {
       const p = find(id);
       const inPlan = p.hostId === ME || p.rsvps.includes(ME);
-      if (!inPlan || new Date(p.startsAt).getTime() > Date.now() || p.rsvps.length < 2) return 0;
+      if (!inPlan || new Date(p.startsAt).getTime() > Date.now() || p.rsvps.length + p.bringing < 2) return 0;
       // demo stand-in for "different friends in common with the group": overlaps shrink the sum
       const counts = [p.hostId, ...p.rsvps].filter((u) => u !== ME).map((u) => s.mutualsWithMe[u] ?? 0);
       return Math.max(Math.max(0, ...counts), Math.round(counts.reduce((a, b) => a + b, 0) * 0.6));
+    },
+    async orbitState(id) {
+      return { picked: s.picks[`${id}:${ME}`] ?? [], connected: [...s.connections] };
+    },
+    async keepInOrbit(id, target) {
+      const p = find(id);
+      if (new Date(p.startsAt).getTime() > Date.now() || ![p.hostId, ...p.rsvps].includes(target)) throw new Error("plan not found");
+      if (s.connections.includes(target)) return "connected";
+      const key = `${id}:${ME}`;
+      s.picks[key] = Array.from(new Set([...(s.picks[key] ?? []), target]));
+      const theirs = Object.entries(s.picks).some(([k, v]) => k.endsWith(`:${target}`) && v.includes(ME));
+      if (theirs) {
+        s.connections.push(target);
+        return "connected";
+      }
+      return "picked";
+    },
+    async dropPick(id, target) {
+      const key = `${id}:${ME}`;
+      s.picks[key] = (s.picks[key] ?? []).filter((u) => u !== target);
     },
     async signal(id) {
       const p = s.plans.find((x) => x.id === id);

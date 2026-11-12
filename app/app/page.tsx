@@ -1,18 +1,24 @@
 import Link from "next/link";
 import { OrbitDial } from "@/components/OrbitDial";
+import { KindIcon } from "@/components/app/KindIcon";
 import { PlanCard } from "@/components/app/PlanCard";
+import { KINDS } from "@/lib/app/kinds";
 import { requireMe } from "@/lib/app/session";
 import type { PlanSignal, PlanView } from "@/lib/app/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function PlansHome() {
+export default async function PlansHome({ searchParams }: { searchParams: Promise<{ kind?: string }> }) {
   const { store, me } = await requireMe("/app");
+  const { kind } = await searchParams;
   const plans = await store.plans();
 
   const now = plans.filter((p) => p.status === "live");
   const mine = plans.filter((p) => (p.isHost || p.joined) && (p.status === "open" || p.status === "on"));
-  const open = plans.filter((p) => !p.isHost && !p.joined && (p.status === "open" || p.status === "on") && p.taken < p.openSpots);
+  const openAll = plans.filter((p) => !p.isHost && !p.joined && (p.status === "open" || p.status === "on") && p.taken < p.openSpots);
+  const kindsHere = KINDS.filter((k) => openAll.some((p) => p.kind === k.id));
+  const active = kind && kindsHere.some((k) => k.id === kind) ? kind : null;
+  const open = active ? openAll.filter((p) => p.kind === active) : openAll;
   const past = plans.filter((p) => p.status === "past").reverse();
   // group-level trust signal for upcoming plans (never about one person)
   const upcoming = [...mine, ...open];
@@ -28,6 +34,14 @@ export default async function PlansHome() {
 
       <Group title="happening now" plans={now} />
       <Group title="you're going" plans={mine} signals={signals} empty="nothing yet. join a plan below, or post one." />
+      {kindsHere.length > 1 ? (
+        <nav aria-label="filter plans by type" className="-mx-5 -mb-6 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+          <Chip href="/app" active={!active} label="everything" />
+          {kindsHere.map((k) => (
+            <Chip key={k.id} href={`/app?kind=${k.id}`} active={active === k.id} label={k.label} kind={k.id} />
+          ))}
+        </nav>
+      ) : null}
       <Group
         title="open to you"
         plans={open}
@@ -80,5 +94,21 @@ function Group({ title, plans, empty, signals }: { title: string; plans: PlanVie
         <p className="text-[16px] text-muted">{empty}</p>
       )}
     </section>
+  );
+}
+
+function Chip({ href, active, label, kind }: { href: string; active: boolean; label: string; kind?: string }) {
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      aria-current={active ? "true" : undefined}
+      className={`mono flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-[13px] transition-colors ${
+        active ? "border-lavender bg-lavender text-ink" : "border-line text-bone hover:border-lavender"
+      }`}
+    >
+      {kind ? <KindIcon kind={kind} className="h-4 w-4" /> : null}
+      {label}
+    </Link>
   );
 }

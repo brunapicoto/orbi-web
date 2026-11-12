@@ -6,8 +6,8 @@ import type { PlanSignal, PlanView } from "@/lib/app/types";
 
 /** Spots as dots: filled for people in (host included), dashed for open. No names. */
 export function SpotDots({ plan }: { plan: PlanView }) {
-  const total = plan.openSpots + 1;
-  const filled = plan.taken + 1;
+  const total = plan.openSpots + 1 + plan.bringing;
+  const filled = plan.taken + 1 + plan.bringing;
   return (
     <span className="flex items-center" aria-hidden="true">
       {Array.from({ length: total }, (_, i) => (

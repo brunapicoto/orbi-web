@@ -7,7 +7,7 @@ import type { Person } from "@/lib/app/types";
 const TONES = ["#7A1428", "#8FA3F5", "#C9D2FA", "#B9B3B5", "#9C9597"];
 
 /** Silhouettes first, then faces and names, one by one. */
-export function PeopleReveal({ people, animate }: { people: Person[]; animate: boolean }) {
+export function PeopleReveal({ people, animate, extra = 0 }: { people: Person[]; animate: boolean; extra?: number }) {
   const reduce = useReducedMotion();
   const instant = reduce || !animate;
   const [shown, setShown] = useState(instant);
@@ -51,6 +51,16 @@ export function PeopleReveal({ people, animate }: { people: Person[]; animate: b
           </li>
         );
       })}
+      {extra > 0 ? (
+        <li className="flex items-center gap-4 px-5 py-4">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-2 text-muted" aria-hidden="true">
+            +{extra}
+          </span>
+          <span className="mono text-muted-2">
+            {extra === 1 ? "a friend of the host" : `${extra} friends of the host`}, not on orbi
+          </span>
+        </li>
+      ) : null}
     </ul>
   );
 }

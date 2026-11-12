@@ -62,6 +62,7 @@ export async function createPlan(_prev: FormState, fd: FormData): Promise<FormSt
   const note = String(fd.get("note") ?? "").trim();
   const startsAt = String(fd.get("startsAt") ?? "");
   const openSpots = Number(fd.get("openSpots"));
+  const bringing = Number(fd.get("bringing") ?? 0);
 
   const fieldErrors: Record<string, string> = {};
   if (!KIND_IDS.includes(kind)) fieldErrors.kind = "pick what kind of plan it is.";
@@ -71,14 +72,16 @@ export async function createPlan(_prev: FormState, fd: FormData): Promise<FormSt
   const when = new Date(startsAt);
   if (!startsAt || Number.isNaN(when.getTime())) fieldErrors.startsAt = "pick a day and time.";
   else if (when.getTime() < Date.now() + 30 * 60_000) fieldErrors.startsAt = "pick a time at least 30 minutes from now.";
-  if (!Number.isInteger(openSpots) || openSpots < 2) fieldErrors.openSpots = "open at least 2 spots, so the plan has 3 people.";
-  else if (openSpots > 11) fieldErrors.openSpots = "11 spots at most.";
+  if (!Number.isInteger(openSpots) || openSpots < 1) fieldErrors.openSpots = "open at least 1 spot for your mutuals.";
+  else if (openSpots > 11) fieldErrors.openSpots = "11 open spots at most.";
+  else if (!Number.isInteger(bringing) || bringing < 0 || bringing > 10) fieldErrors.openSpots = "check the group size.";
+  else if (1 + bringing + openSpots < 3) fieldErrors.openSpots = "plans start at 3: you plus at least 2.";
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
   const store = await getStore();
   let id: string;
   try {
-    id = await store.createPlan({ kind, place, note, startsAt: when.toISOString(), openSpots });
+    id = await store.createPlan({ kind, place, note, startsAt: when.toISOString(), openSpots, bringing });
   } catch (e) {
     return { error: friendly(e) };
   }
@@ -141,6 +144,31 @@ export async function uploadPhoto(_prev: FormState, fd: FormData): Promise<FormS
   const store = await getStore();
   try {
     await store.uploadPhoto(id, file);
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath(`/app/plan/${id}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- keep in orbit
+
+export async function keepInOrbit(id: string, target: string): Promise<FormState & { result?: "picked" | "connected" }> {
+  const store = await getStore();
+  try {
+    const result = await store.keepInOrbit(id, target);
+    revalidatePath(`/app/plan/${id}`);
+    if (result === "connected") revalidatePath("/app/mutuals");
+    return { ok: true, result };
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+}
+
+export async function dropOrbitPick(id: string, target: string): Promise<FormState> {
+  const store = await getStore();
+  try {
+    await store.dropPick(id, target);
   } catch (e) {
     return { error: friendly(e) };
   }

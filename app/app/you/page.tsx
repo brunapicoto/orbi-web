@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { signOut } from "@/app/app/actions";
 import { NameForm } from "@/components/app/Forms";
 import { requireMe } from "@/lib/app/session";
@@ -35,6 +36,16 @@ export default async function You() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="flex flex-col gap-3" aria-label="more">
+        <Link href="/app/mutuals" className="flex items-center justify-between rounded-3xl bg-ink-2 px-5 py-4 ring-1 ring-line ring-inset hover:ring-lavender/50">
+          <span className="text-bone">your orbit</span>
+          <span className="mono text-lavender">invite link · mutuals</span>
+        </Link>
+        <Link href="/app/welcome?intro=1" className="mono link-draw self-start text-muted-2">
+          replay the intro
+        </Link>
       </section>
 
       <form action={signOut}>

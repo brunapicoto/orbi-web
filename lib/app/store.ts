@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
 import { demoStore } from "@/lib/app/demo";
-import type { Me, NewPlan, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
+import type { Me, NewPlan, OrbitState, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
 
 /** Everything the app reads and writes. Two implementations: Supabase, or demo data. */
 export interface Store {
@@ -14,6 +14,9 @@ export interface Store {
   people(id: string): Promise<Person[]>;
   signal(id: string): Promise<PlanSignal | null>;
   groupMutuals(id: string): Promise<number>;
+  orbitState(id: string): Promise<OrbitState>;
+  keepInOrbit(id: string, target: string): Promise<"picked" | "connected">;
+  dropPick(id: string, target: string): Promise<void>;
   createPlan(input: NewPlan): Promise<string>;
   cancelPlan(id: string): Promise<void>;
   join(id: string): Promise<void>;
@@ -53,11 +56,11 @@ async function supabaseStore(): Promise<Store> {
 
   type Row = {
     id: string; kind: string; place: string; note: string | null; starts_at: string;
-    open_spots: number; taken: number; is_host: boolean; joined: boolean; status: PlanStatus;
+    open_spots: number; taken: number; bringing: number | null; is_host: boolean; joined: boolean; status: PlanStatus;
   };
   const toView = (r: Row): PlanView => ({
     id: r.id, kind: r.kind, place: r.place, note: r.note, startsAt: r.starts_at, openSpots: r.open_spots,
-    taken: r.taken, isHost: r.is_host, joined: r.joined, status: r.status,
+    taken: r.taken, bringing: r.bringing ?? 0, isHost: r.is_host, joined: r.joined, status: r.status,
   });
 
   const store: Store = {
@@ -97,6 +100,26 @@ async function supabaseStore(): Promise<Store> {
       const { data, error } = await sb.rpc("plan_group_mutuals", { p: id });
       return error ? 0 : ((data as number | null) ?? 0);
     },
+    async orbitState(id) {
+      const me = await uid();
+      const [{ data: picks }, { data: conns }] = await Promise.all([
+        sb.from("orbit_picks").select("picked").eq("plan_id", id),
+        sb.from("connections").select("user_a, user_b"),
+      ]);
+      return {
+        picked: (picks ?? []).map((r) => r.picked as string),
+        connected: (conns ?? []).map((r) => (r.user_a === me ? r.user_b : r.user_a) as string),
+      };
+    },
+    async keepInOrbit(id, target) {
+      const { data, error } = await sb.rpc("keep_in_orbit", { p: id, target });
+      if (error) throw error;
+      return data as "picked" | "connected";
+    },
+    async dropPick(id, target) {
+      const { error } = await sb.rpc("drop_orbit_pick", { p: id, target });
+      if (error) throw error;
+    },
     async signal(id) {
       const { data, error } = await sb.rpc("plan_signal", { p: id });
       if (error || !data?.length) return null;
@@ -106,7 +129,7 @@ async function supabaseStore(): Promise<Store> {
     async createPlan(input) {
       const { data, error } = await sb
         .from("plans")
-        .insert({ kind: input.kind, place: input.place, note: input.note || null, starts_at: input.startsAt, open_spots: input.openSpots })
+        .insert({ kind: input.kind, place: input.place, note: input.note || null, starts_at: input.startsAt, open_spots: input.openSpots, bringing: input.bringing })
         .select("id")
         .single();
       if (error) throw error;

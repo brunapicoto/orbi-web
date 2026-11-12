@@ -33,10 +33,22 @@ create table if not exists public.plans (
   place text not null check (char_length(btrim(place)) between 1 and 80),
   note text check (note is null or char_length(note) <= 280),
   starts_at timestamptz not null,
-  -- spots for mutuals; the host is not counted, so 2 or more means 3+ people
-  open_spots int not null check (open_spots between 2 and 11),
+  -- spots for mutuals (the host is not counted)
+  open_spots int not null,
+  -- friends the host is already bringing, who are not on orbi
+  bringing int not null default 0,
   created_at timestamptz not null default now()
 );
+
+-- group size rules, written so this file can run again on an existing project:
+-- the host + the friends they bring + the open spots must be 3 or more
+alter table public.plans add column if not exists bringing int not null default 0;
+alter table public.plans drop constraint if exists plans_open_spots_check;
+alter table public.plans drop constraint if exists plans_bringing_check;
+alter table public.plans drop constraint if exists plans_min_group;
+alter table public.plans add constraint plans_open_spots_check check (open_spots between 1 and 11);
+alter table public.plans add constraint plans_bringing_check check (bringing between 0 and 10);
+alter table public.plans add constraint plans_min_group check (1 + bringing + open_spots >= 3);
 create index if not exists plans_host_idx on public.plans (host_id);
 create index if not exists plans_starts_idx on public.plans (starts_at);
 
@@ -73,6 +85,14 @@ returns int
 language sql stable security definer set search_path = public
 as $$
   select count(*)::int from rsvps where plan_id = p;
+$$;
+
+-- people in the plan besides the host: mutuals who said yes + friends the host brings
+create or replace function public.plan_count(p uuid)
+returns int
+language sql stable security definer set search_path = public
+as $$
+  select plan_taken(p) + coalesce((select bringing from plans where id = p), 0);
 $$;
 
 -- host or confirmed guest
@@ -195,18 +215,20 @@ grant select, insert on public.plan_photos to authenticated;
 
 -- every plan you can see: yours, your connections', and ones you joined.
 -- never returns host_id. plans that didn't reach 3 are dropped.
-create or replace function public.my_plans()
+drop function if exists public.my_plans();
+create function public.my_plans()
 returns table (
   id uuid, kind text, place text, note text, starts_at timestamptz,
-  open_spots int, taken int, is_host boolean, joined boolean, status text
+  open_spots int, taken int, bringing int, is_host boolean, joined boolean, status text
 )
 language sql stable security definer set search_path = public
 as $$
   select p.id, p.kind, p.place, p.note, p.starts_at, p.open_spots,
          plan_taken(p.id) as taken,
+         p.bringing,
          p.host_id = auth.uid() as is_host,
          exists (select 1 from rsvps r where r.plan_id = p.id and r.user_id = auth.uid()) as joined,
-         plan_status(p.starts_at, plan_taken(p.id)) as status
+         plan_status(p.starts_at, plan_count(p.id)) as status
   from plans p
   where auth.uid() is not null
     and (
@@ -214,7 +236,7 @@ as $$
       or exists (select 1 from rsvps r where r.plan_id = p.id and r.user_id = auth.uid())
       or (are_connected(p.host_id, auth.uid()) and p.starts_at > now())
     )
-    and plan_status(p.starts_at, plan_taken(p.id)) <> 'off'
+    and plan_status(p.starts_at, plan_count(p.id)) <> 'off'
   order by p.starts_at;
 $$;
 
@@ -261,7 +283,7 @@ as $$
   join profiles pr on pr.id = pl.host_id or pr.id in (select user_id from rsvps where plan_id = p)
   where is_in_plan(p, auth.uid())
     and pl.starts_at <= now()
-    and plan_taken(p) >= 2
+    and plan_count(p) >= 2
   order by (pr.id = pl.host_id) desc, pr.first_name;
 $$;
 
@@ -291,7 +313,54 @@ as $$
   where f.id not in (select id from members)
     and is_in_plan(p, auth.uid())
     and (select starts_at from pl) <= now()
-    and plan_taken(p) >= 2;
+    and plan_count(p) >= 2;
+$$;
+
+-- ---------------------------------------------------------------- keep in orbit
+-- After a plan starts, each person can quietly pick who they want to keep in their orbit.
+-- Two people who pick each other become connected. A one-sided pick stays private forever.
+create table if not exists public.orbit_picks (
+  plan_id uuid not null references public.plans (id) on delete cascade,
+  picker uuid not null references public.profiles (id) on delete cascade,
+  picked uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (plan_id, picker, picked),
+  check (picker <> picked)
+);
+alter table public.orbit_picks enable row level security;
+drop policy if exists orbit_picks_select on public.orbit_picks;
+create policy orbit_picks_select on public.orbit_picks for select to authenticated
+  using (picker = auth.uid());
+revoke all on public.orbit_picks from anon;
+grant select on public.orbit_picks to authenticated;
+
+create or replace function public.keep_in_orbit(p uuid, target uuid)
+returns text
+language plpgsql security definer set search_path = public
+as $$
+declare
+  me uuid := auth.uid();
+begin
+  if me is null then raise exception 'not signed in'; end if;
+  if target = me or not plan_started(p) or plan_count(p) < 2
+     or not is_in_plan(p, me) or not is_in_plan(p, target) then
+    raise exception 'plan not found';
+  end if;
+  if are_connected(me, target) then return 'connected'; end if;
+  insert into orbit_picks (plan_id, picker, picked) values (p, me, target) on conflict do nothing;
+  if exists (select 1 from orbit_picks where picker = target and picked = me) then
+    insert into connections (user_a, user_b) values (least(me, target), greatest(me, target)) on conflict do nothing;
+    return 'connected';
+  end if;
+  return 'picked';
+end;
+$$;
+
+create or replace function public.drop_orbit_pick(p uuid, target uuid)
+returns void
+language sql security definer set search_path = public
+as $$
+  delete from orbit_picks where plan_id = p and picker = auth.uid() and picked = target;
 $$;
 
 -- ---------------------------------------------------------------- trust signal, at group level only
@@ -355,6 +424,8 @@ $$;
 
 revoke all on function public.mutual_count(uuid, uuid), public.plan_signal(uuid), public.plan_group_mutuals(uuid) from public, anon, authenticated;
 grant execute on function public.plan_signal(uuid), public.plan_group_mutuals(uuid) to authenticated;
+revoke all on function public.keep_in_orbit(uuid, uuid), public.drop_orbit_pick(uuid, uuid), public.plan_count(uuid) from public, anon;
+grant execute on function public.keep_in_orbit(uuid, uuid), public.drop_orbit_pick(uuid, uuid) to authenticated;
 revoke all on function public.my_plans(), public.join_plan(uuid), public.leave_plan(uuid),
   public.plan_people(uuid), public.accept_invite(text), public.invite_name(text),
   public.are_connected(uuid, uuid), public.plan_taken(uuid), public.is_in_plan(uuid, uuid),

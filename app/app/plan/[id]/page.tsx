@@ -5,6 +5,7 @@ import { OrbitDial, type DialPhase } from "@/components/OrbitDial";
 import { JoinButton } from "@/components/app/JoinButton";
 import { KindIcon } from "@/components/app/KindIcon";
 import { PeopleReveal } from "@/components/app/PeopleReveal";
+import { OrbitPicks } from "@/components/app/OrbitPicks";
 import { PhotoUpload } from "@/components/app/PhotoUpload";
 import { SpotDots, TrustDot, planLine, whoLine } from "@/components/app/PlanCard";
 import { trustLines } from "@/lib/app/trust";
@@ -25,6 +26,10 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
   const people = started && inPlan ? await store.people(id) : [];
   const photos = started && inPlan ? await store.photos(id) : [];
   const groupMutuals = started && inPlan ? await store.groupMutuals(id) : 0;
+  const orbit = started && inPlan ? await store.orbitState(id) : null;
+  const people_n = plan.taken + 1 + plan.bringing;
+  const friends = `${plan.bringing} ${plan.bringing === 1 ? "friend" : "friends"}`;
+  const brings = plan.bringing ? (plan.isHost ? ` you're bringing ${friends}.` : ` the host is bringing ${friends}.`) : "";
   const trust = started ? null : trustLines(await store.signal(id));
   const full = plan.taken >= plan.openSpots;
   const phase: DialPhase = started ? "reveal" : plan.taken > 0 ? "blind" : "plan";
@@ -64,10 +69,10 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
         </div>
         <p className="text-[16px] text-muted">
           {started
-            ? `${plan.taken + 1} people. ${plan.status === "live" ? "the list is open." : "it happened."}`
+            ? `${people_n} people. ${plan.status === "live" ? "the list is open." : "it happened."}`
             : plan.status === "on"
-              ? `it's on: ${plan.taken + 1} people so far, ${planLine(plan)}. names stay sealed until it starts.`
-              : `${plan.taken + 1} of 3 needed so far, ${planLine(plan)}. if it doesn't reach 3, it quietly doesn't happen.`}
+              ? `it's on: ${people_n} people so far, ${planLine(plan)}.${brings} names stay sealed until it starts.`
+              : `${people_n} of 3 needed so far, ${planLine(plan)}.${brings} if it doesn't reach 3, it quietly doesn't happen.`}
         </p>
         {trust ? (
           <div className="flex flex-col gap-1.5 border-t border-dashed border-line pt-4">
@@ -99,7 +104,7 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
           <h2 id="who-title" className="mono text-muted-2">
             {plan.status === "live" ? "who's here" : "who was there"}
           </h2>
-          <PeopleReveal people={people} animate={plan.status === "live"} />
+          <PeopleReveal people={people} animate={plan.status === "live"} extra={plan.bringing} />
           {groupMutuals > 0 ? (
             <div className="flex items-baseline gap-4 rounded-3xl bg-bordeaux px-6 py-5">
               <span className="display text-[3.25rem] leading-none text-lavender">{groupMutuals}</span>
@@ -108,6 +113,15 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
               </span>
             </div>
           ) : null}
+        </section>
+      ) : null}
+
+      {started && inPlan && orbit && people.length > 1 ? (
+        <section className="flex flex-col gap-4" aria-labelledby="orbit-title">
+          <h2 id="orbit-title" className="mono text-muted-2">
+            keep in orbit
+          </h2>
+          <OrbitPicks planId={plan.id} people={people.filter((p) => !p.isMe)} picked={orbit.picked} connected={orbit.connected} />
         </section>
       ) : null}
 
