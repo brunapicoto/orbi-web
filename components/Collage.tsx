@@ -1,55 +1,54 @@
 import fs from "node:fs";
 import path from "node:path";
 import Image from "next/image";
-import { PaintArt, RunArt, SaunaArt } from "@/components/SceneArt";
+import { BarArt, CafeArt, MuseumArt, PaintArt, ParkArt, RunArt, SaunaArt, ShowArt } from "@/components/SceneArt";
 
 /**
- * Black-and-white cutout photos on a single bordeaux brushstroke.
- * Drop transparent PNG cutouts (or JPGs) into /public/collage/ with the file names
- * below to replace the white drawings.
+ * A sideways-scrolling row of example plans: white drawings on bordeaux cards.
+ * Drop a photo into /public/collage/ with a card's file name to show it instead of the drawing.
  */
-const SLOTS = [
-  { file: "01.jpg", alt: "", label: "run club · sat 8am", Art: RunArt, className: "left-[4%] top-[14%] w-[34%] -rotate-3" },
-  { file: "02.jpg", alt: "", label: "sauna · sun 5pm", Art: SaunaArt, className: "left-[34%] top-[2%] w-[32%] rotate-2" },
-  { file: "03.jpg", alt: "", label: "painting · tue 7pm", Art: PaintArt, className: "right-[3%] top-[20%] w-[33%] -rotate-1" },
+const CARDS = [
+  { file: "met.jpg", label: "a visit to the met · sat 11am", Art: MuseumArt },
+  { file: "monkey-bar.jpg", label: "dinner at monkey bar · thu 8pm", Art: BarArt },
+  { file: "moms.jpg", label: "moms' meetup in central park · sat 10am", Art: ParkArt },
+  { file: "01.jpg", label: "run club · sat 8am", Art: RunArt },
+  { file: "02.jpg", label: "sauna · sun 5pm", Art: SaunaArt },
+  { file: "comedy.jpg", label: "comedy night · fri 9pm", Art: ShowArt },
+  { file: "03.jpg", label: "painting class · tue 7pm", Art: PaintArt },
+  { file: "brunch.jpg", label: "brunch · sun 11am", Art: CafeArt },
 ] as const;
 
 export function Collage() {
   const dir = path.join(process.cwd(), "public", "collage");
   return (
-    <figure className="relative mx-auto aspect-[5/3] w-full max-w-3xl" aria-label="collage of friends out together">
-      {/* the brushstroke */}
-      <svg viewBox="0 0 500 300" className="absolute inset-0 h-full w-full" aria-hidden="true" preserveAspectRatio="none">
-        <path
-          d="M18 170c40-58 118-92 214-98 92-6 176 10 236 40 18 9 20 30 4 44-56 46-150 78-262 80-86 2-154-14-188-34-14-8-14-20-4-32z"
-          fill="#7A1428"
-        />
-        <path d="M60 118c62-30 160-46 262-32" stroke="#7A1428" strokeWidth="10" strokeLinecap="round" fill="none" opacity="0.7" />
-      </svg>
-      {SLOTS.map((s) => {
-        const exists = fs.existsSync(path.join(dir, s.file));
-        return (
-          <div key={s.file} className={`absolute aspect-[3/4] ${s.className}`}>
-            {exists ? (
-              <Image
-                src={`/collage/${s.file}`}
-                alt={s.alt}
-                fill
-                sizes="(min-width: 768px) 260px, 33vw"
-                className="object-contain grayscale contrast-125"
-              />
-            ) : (
-              // drawn in white until a real cutout photo exists in /public/collage/
-              <div className="flex h-full w-full flex-col items-center justify-center gap-2 rounded-2xl bg-ink p-3 shadow-[0_24px_60px_rgba(14,12,13,0.5)] ring-1 ring-line md:gap-3 md:p-5">
-                <div className="w-full flex-1">
-                  <s.Art />
+    <div className="flex flex-col gap-4">
+      <p className="mono text-muted-2">examples · scroll for more</p>
+      <ul
+        aria-label="example plans"
+        tabIndex={0}
+        className="no-scrollbar -mx-[max(20px,calc((100vw-72rem)/2+20px))] flex snap-x snap-mandatory gap-5 overflow-x-auto px-[max(20px,calc((100vw-72rem)/2+20px))] py-6 [scroll-padding-inline:max(20px,calc((100vw-72rem)/2+20px))]"
+      >
+        {CARDS.map((c, i) => {
+          const photo = fs.existsSync(path.join(dir, c.file));
+          return (
+            <li
+              key={c.file}
+              className={`relative flex aspect-[3/4] w-[230px] shrink-0 snap-start flex-col overflow-hidden rounded-[22px] bg-bordeaux shadow-[0_24px_60px_rgba(14,12,13,0.5)] md:w-[270px] ${
+                i % 2 ? "rotate-[1.5deg]" : "-rotate-[1.5deg]"
+              }`}
+            >
+              {photo ? (
+                <Image src={`/collage/${c.file}`} alt={c.label} fill sizes="270px" className="object-cover grayscale contrast-125" />
+              ) : (
+                <div className="flex-1 px-6 pt-6">
+                  <c.Art />
                 </div>
-                <span className="mono whitespace-nowrap text-center text-[9px] leading-tight text-muted-2 sm:text-[11px] md:text-[12px]">{s.label}</span>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </figure>
+              )}
+              <span className="mono relative bg-bordeaux px-4 pb-5 pt-2 text-center text-[12px] text-lavender-soft">{c.label}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

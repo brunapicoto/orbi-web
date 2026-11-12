@@ -157,3 +157,104 @@ export function PaintArt() {
     </svg>
   );
 }
+
+export function MuseumArt() {
+  return (
+    <svg viewBox="0 0 200 250" className="h-full w-full" role="img" aria-label="friends on the steps of a big museum with columns">
+      <path d="M22 70L100 30l78 40z" fill="none" stroke={FG} strokeWidth={1.6} strokeLinejoin="round" />
+      <rect x="26" y="70" width="148" height="8" fill={FG} />
+      {[40, 64, 88, 112, 136, 160].map((x) => (
+        <rect key={x} x={x - 4} y="82" width="8" height="70" rx="2" fill={FG} />
+      ))}
+      <rect x="20" y="152" width="160" height="7" fill={FG} />
+      <rect x="12" y="163" width="176" height="6" fill={FG} opacity={0.7} />
+      <rect x="4" y="173" width="192" height="6" fill={FG} opacity={0.45} />
+      <circle cx="100" cy="50" r="5" fill="none" stroke={FG} strokeWidth={1.2} />
+      <Person x={70} y={194} s={0.6} />
+      <Person x={92} y={190} s={0.6} />
+      <Person x={114} y={194} s={0.6} />
+      <Person x={136} y={192} s={0.6} />
+      <line x1="8" y1="236" x2="192" y2="236" stroke={RING} strokeWidth={1} />
+    </svg>
+  );
+}
+
+export function BarArt() {
+  const glass = (x: number, y: number) => (
+    <g fill="none" stroke={FG} strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round">
+      <path d={`M${x - 8} ${y}h16l-8 9z`} />
+      <line x1={x} y1={y + 9} x2={x} y2={y + 18} />
+      <line x1={x - 5} y1={y + 18} x2={x + 5} y2={y + 18} />
+    </g>
+  );
+  return (
+    <svg viewBox="0 0 200 250" className="h-full w-full" role="img" aria-label="friends in a round booth with martinis">
+      {/* the booth, like an old new york bar */}
+      <path d="M24 170V96a76 76 0 0 1 152 0v74" fill="none" stroke={FG} strokeWidth={1.4} />
+      <path d="M38 170V100a62 62 0 0 1 124 0v70" fill="none" stroke={RING} strokeWidth={1} />
+      <circle cx="100" cy="40" r="6" fill={FG} />
+      <circle cx="100" cy="40" r="20" fill="none" stroke={RING} strokeWidth={0.8} strokeDasharray="1 3" />
+      <Person x={62} y={112} s={0.85} />
+      <Person x={100} y={104} s={0.85} />
+      <Person x={138} y={112} s={0.85} />
+      <ellipse cx="100" cy="166" rx="66" ry="10" fill={FG} />
+      {glass(72, 140)}
+      {glass(100, 136)}
+      {glass(128, 140)}
+      <line x1="100" y1="176" x2="100" y2="218" stroke={FG} strokeWidth={2} />
+      <line x1="80" y1="218" x2="120" y2="218" stroke={FG} strokeWidth={2} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function ShowArt() {
+  return (
+    <svg viewBox="0 0 200 250" className="h-full w-full" role="img" aria-label="friends in the audience at a comedy show">
+      <path d="M100 10L64 120h72z" fill={FG} opacity={0.12} />
+      <circle cx="100" cy="10" r="4" fill={FG} />
+      <Person x={100} y={70} s={0.9} />
+      <line x1="122" y1="80" x2="122" y2="122" stroke={FG} strokeWidth={1.6} />
+      <circle cx="122" cy="76" r="4" fill={FG} />
+      <rect x="20" y="122" width="160" height="6" rx="3" fill={FG} />
+      {[34, 62, 90, 118, 146, 170].map((x, i) => (
+        <circle key={x} cx={x} cy={i % 2 ? 166 : 162} r="11" fill={FG} />
+      ))}
+      {[48, 76, 104, 132, 160].map((x, i) => (
+        <circle key={x} cx={x} cy={i % 2 ? 198 : 194} r="11" fill={FG} opacity={0.8} />
+      ))}
+      <line x1="8" y1="224" x2="192" y2="224" stroke={RING} strokeWidth={1} />
+    </svg>
+  );
+}
+
+export function ParkArt() {
+  const tree = (x: number, y: number, r: number) => (
+    <g>
+      <circle cx={x} cy={y} r={r} fill={FG} opacity={0.9} />
+      <line x1={x} y1={y + r - 2} x2={x} y2={y + r + 22} stroke={FG} strokeWidth={3} strokeLinecap="round" />
+    </g>
+  );
+  const stroller = (x: number, y: number) => (
+    <g fill="none" stroke={FG} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <path d={`M${x} ${y}a14 14 0 0 1 28 0z`} fill={FG} />
+      <path d={`M${x} ${y}h28l-4 10h-20z`} />
+      <line x1={x + 28} y1={y} x2={x + 36} y2={y - 14} />
+      <circle cx={x + 6} cy={y + 15} r="4" />
+      <circle cx={x + 22} cy={y + 15} r="4" />
+    </g>
+  );
+  return (
+    <svg viewBox="0 0 200 250" className="h-full w-full" role="img" aria-label="moms with strollers walking together in the park">
+      {tree(34, 54, 22)}
+      {tree(100, 40, 28)}
+      {tree(166, 56, 20)}
+      <Person x={48} y={128} s={0.85} />
+      <Person x={108} y={124} s={0.85} />
+      <Person x={164} y={130} s={0.8} />
+      {stroller(62, 172)}
+      {stroller(122, 168)}
+      <path d="M6 214c50-14 138-14 188 0" fill="none" stroke={RING} strokeWidth={1.2} />
+      <line x1="8" y1="232" x2="192" y2="232" stroke={RING} strokeWidth={1} />
+    </svg>
+  );
+}
