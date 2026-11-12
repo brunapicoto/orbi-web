@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# orbi-web
 
-## Getting Started
+The landing page and waitlist for orbi. Next.js (App Router), TypeScript, Tailwind CSS v4, Framer Motion, Supabase.
 
-First, run the development server:
+## Run locally
 
 ```bash
+npm install
+cp .env.example .env.local   # then fill in the Supabase keys
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Supabase
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Create a project, open the SQL editor and run `supabase/waitlist.sql`. It creates the `waitlist` table with a case-insensitive unique email, turns on row level security and allows anon to insert only (no reads).
+2. Copy the project URL and the anon key into `.env.local` and into the Vercel project's environment variables.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Without the keys the site still builds and runs; the form shows "the waitlist isn't connected yet."
 
-## Learn More
+## Deploy (Vercel)
 
-To learn more about Next.js, take a look at the following resources:
+Import this repo in Vercel. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `NEXT_PUBLIC_SITE_URL` (the live domain, used for Open Graph links).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Placeholders to fill
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `public/collage/01.jpg`, `02.jpg`, `03.jpg`: black-and-white cutout photos. Until they exist, the collage shows labelled frames. Rebuild after adding them.
+- `lib/site.ts`: `contactEmail` and `instagramUrl`.
 
-## Deploy on Vercel
+## Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `app/page.tsx`: the sections, in order, with the copy
+- `components/`: `OrbitDial`, `Section`, `PlanTicket`, `StatCard`, `WaitlistForm`, `Faq`, `HowItWorks`, `Collage`, `Nav`, `Footer`, `Reveal`
+- `app/actions/waitlist.ts`: server action that validates and inserts into Supabase
+- `app/icon.svg`, `app/opengraph-image.tsx`: favicon and share image
