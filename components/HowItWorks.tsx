@@ -6,6 +6,12 @@ import { OrbitDial, type DialPhase } from "@/components/OrbitDial";
 
 const STEPS: { n: string; title: string; body: string; phase: DialPhase }[] = [
   {
+    n: "00",
+    title: "tell us what you're into",
+    body: "A few quick questions: what you like, when you're free, where you go. Plans show up in the order that fits you. Only you see your answers.",
+    phase: "full",
+  },
+  {
     n: "01",
     title: "post a plan",
     body: "Painting, a run, the sauna, a dinner. Set the open spots. Every plan needs 3 or more people.",
