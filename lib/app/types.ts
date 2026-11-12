@@ -25,6 +25,9 @@ export type Me = { id: string; email: string | null; firstName: string | null; i
 
 export type Photo = { id: string; url: string };
 
+/** What you're into. Private: only used to order plans you already see. */
+export type Prefs = { kinds: string[]; times: string[]; areas: string[]; groupSize: "small" | "medium" | "big" | null };
+
 export type NewPlan = { kind: string; place: string; note: string; startsAt: string; openSpots: number; bringing: number };
 
 /** After a plan: who you picked to keep in your orbit, and who you're already connected to. */

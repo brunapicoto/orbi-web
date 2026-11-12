@@ -175,3 +175,27 @@ export async function dropOrbitPick(id: string, target: string): Promise<FormSta
   revalidatePath(`/app/plan/${id}`);
   return { ok: true };
 }
+
+// ---------------------------------------------------------------- what you're into
+
+export async function savePrefs(_prev: FormState, fd: FormData): Promise<FormState> {
+  const pick = (name: string, allowed: string[]) => fd.getAll(name).map(String).filter((v) => allowed.includes(v));
+  const { TIMES, AREAS } = await import("@/lib/app/rank");
+  const size = String(fd.get("groupSize") ?? "");
+  const prefs = {
+    kinds: pick("kinds", KIND_IDS.filter((k) => k !== "other")),
+    times: pick("times", TIMES.map((t) => t.id)),
+    areas: pick("areas", AREAS.map((a) => a.id)),
+    groupSize: (["small", "medium", "big"].includes(size) ? size : null) as "small" | "medium" | "big" | null,
+  };
+  const store = await getStore();
+  try {
+    await store.savePrefs(prefs);
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath("/app");
+  const next = String(fd.get("next") ?? "");
+  if (next.startsWith("/app")) redirect(next);
+  return { ok: true };
+}

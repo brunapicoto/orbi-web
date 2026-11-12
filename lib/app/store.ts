@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
 import { demoStore } from "@/lib/app/demo";
-import type { Me, NewPlan, OrbitState, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
+import type { Me, NewPlan, OrbitState, Prefs, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
 
 /** Everything the app reads and writes. Two implementations: Supabase, or demo data. */
 export interface Store {
@@ -15,6 +15,8 @@ export interface Store {
   signal(id: string): Promise<PlanSignal | null>;
   groupMutuals(id: string): Promise<number>;
   orbitState(id: string): Promise<OrbitState>;
+  prefs(): Promise<Prefs | null>;
+  savePrefs(p: Prefs): Promise<void>;
   keepInOrbit(id: string, target: string): Promise<"picked" | "connected">;
   dropPick(id: string, target: string): Promise<void>;
   createPlan(input: NewPlan): Promise<string>;
@@ -99,6 +101,18 @@ async function supabaseStore(): Promise<Store> {
     async groupMutuals(id) {
       const { data, error } = await sb.rpc("plan_group_mutuals", { p: id });
       return error ? 0 : ((data as number | null) ?? 0);
+    },
+    async prefs() {
+      const { data } = await sb.from("preferences").select("kinds, times, areas, group_size").maybeSingle();
+      if (!data) return null;
+      return { kinds: data.kinds ?? [], times: data.times ?? [], areas: data.areas ?? [], groupSize: data.group_size ?? null };
+    },
+    async savePrefs(p) {
+      const id = await uid();
+      const { error } = await sb.from("preferences").upsert({
+        user_id: id, kinds: p.kinds, times: p.times, areas: p.areas, group_size: p.groupSize, updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
     },
     async orbitState(id) {
       const me = await uid();

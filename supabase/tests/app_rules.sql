@@ -184,10 +184,24 @@ select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
 select pg_temp.check(plan_group_mutuals('11111111-0000-0000-0000-000000000005') = 1, 'at the reveal Bia sees one exact number for the group: 1 friend in common (Eva)');
 reset role;
 
+-- ---------------------------------------------------------------- preferences are private
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+insert into preferences (kinds, times, areas, group_size) values ('{run,gallery}', '{weekend-morning}', '{brooklyn}', 'small');
+select pg_temp.check((select kinds from preferences) = '{run,gallery}', 'Bia saves what she is into');
+update preferences set group_size = 'medium';
+select pg_temp.check((select group_size from preferences) = 'medium', 'and can change it any time');
+select pg_temp.expect_fail($$insert into preferences (user_id, kinds) values ('00000000-0000-0000-0000-00000000000c', '{sauna}')$$, 'nobody can write preferences for someone else');
+select pg_temp.expect_fail($$update preferences set group_size = 'huge'$$, 'only known group sizes');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check((select count(*) from preferences) = 0, 'Ana cannot see Bia''s preferences');
+reset role;
+
 -- signed-out visitors
 set role anon;
 select pg_temp.expect_fail($$select * from my_plans()$$, 'signed-out visitors cannot call the app functions');
 select pg_temp.expect_fail($$select * from profiles$$, 'or read profiles');
 select pg_temp.expect_fail($$select * from plan_signal('11111111-0000-0000-0000-000000000005')$$, 'or get a trust signal');
+select pg_temp.expect_fail($$select * from preferences$$, 'or read anyone''s preferences');
 reset role;
 \echo ALL TESTS PASSED

@@ -96,7 +96,7 @@ export function WelcomeFlow({ next, replay }: { next: string; replay: boolean })
         <h1 className="display text-[3rem]">what should your mutuals call you?</h1>
         <p className="text-muted">only your connections see your name, and only once a plan starts.</p>
       </header>
-      <NameForm next={next} />
+      <NameForm next={`/app/preferences?first=1&next=${encodeURIComponent(next)}`} />
     </div>
   );
 }

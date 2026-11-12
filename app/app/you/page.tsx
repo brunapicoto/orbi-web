@@ -43,6 +43,10 @@ export default async function You() {
           <span className="text-bone">your orbit</span>
           <span className="mono text-lavender">invite link · mutuals</span>
         </Link>
+        <Link href="/app/preferences" className="flex items-center justify-between rounded-3xl bg-ink-2 px-5 py-4 ring-1 ring-line ring-inset hover:ring-lavender/50">
+          <span className="text-bone">what you&apos;re into</span>
+          <span className="mono text-lavender">orders your plans</span>
+        </Link>
         <Link href="/app/welcome?intro=1" className="mono link-draw self-start text-muted-2">
           replay the intro
         </Link>

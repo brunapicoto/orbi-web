@@ -17,6 +17,7 @@ type DemoState = {
   plans: DemoPlan[];
   /** keep-in-orbit picks, keyed "planId:picker" */
   picks: Record<string, string[]>;
+  prefs: import("@/lib/app/types").Prefs | null;
 };
 
 const ME = "me";
@@ -38,6 +39,7 @@ function seed(): DemoState {
     mutualsWithMe: { lena: 42, marcus: 18, iris: 9, theo: 65, sofia: 23, naomi: 31, eva: 0 },
     // eva was at the comedy show and already picked you; pick her back and you connect
     picks: { "p-past:eva": [ME] },
+    prefs: { kinds: ["run", "gallery", "sauna"], times: ["weekend-morning", "weekend-afternoon"], areas: ["brooklyn"], groupSize: "small" },
     plans: [
       // happening now: the reveal
       { id: "p-dinner", hostId: "lena", kind: "dinner", place: "Estela, Nolita", note: "late dinner, I've had this one saved for months.", startsAt: hours(-0.3), openSpots: 3, bringing: 0, rsvps: [ME, "theo", "naomi"], photos: [] },
@@ -137,6 +139,12 @@ export async function demoStore(): Promise<Store> {
       // demo stand-in for "different friends in common with the group": overlaps shrink the sum
       const counts = [p.hostId, ...p.rsvps].filter((u) => u !== ME).map((u) => s.mutualsWithMe[u] ?? 0);
       return Math.max(Math.max(0, ...counts), Math.round(counts.reduce((a, b) => a + b, 0) * 0.6));
+    },
+    async prefs() {
+      return s.prefs;
+    },
+    async savePrefs(p) {
+      s.prefs = p;
     },
     async orbitState(id) {
       return { picked: s.picks[`${id}:${ME}`] ?? [], connected: [...s.connections] };

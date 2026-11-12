@@ -363,6 +363,24 @@ as $$
   delete from orbit_picks where plan_id = p and picker = auth.uid() and picked = target;
 $$;
 
+-- ---------------------------------------------------------------- what you're into (private)
+-- Used only to order the plans you already see. Never shown to anyone, never about people.
+create table if not exists public.preferences (
+  user_id uuid primary key default auth.uid() references public.profiles (id) on delete cascade,
+  kinds text[] not null default '{}',
+  times text[] not null default '{}',
+  areas text[] not null default '{}',
+  group_size text check (group_size is null or group_size in ('small', 'medium', 'big')),
+  updated_at timestamptz not null default now(),
+  check (cardinality(kinds) <= 11 and cardinality(times) <= 4 and cardinality(areas) <= 4)
+);
+alter table public.preferences enable row level security;
+drop policy if exists preferences_own on public.preferences;
+create policy preferences_own on public.preferences for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+revoke all on public.preferences from anon;
+grant select, insert, update on public.preferences to authenticated;
+
 -- ---------------------------------------------------------------- trust signal, at group level only
 -- Before the reveal people see a signal about the whole group, never about one person:
 --   * everyone in a plan you can see is at most 2 steps from you (you, the host, them)

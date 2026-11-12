@@ -47,7 +47,7 @@ export function TrustDot() {
   );
 }
 
-export function PlanCard({ plan, signal }: { plan: PlanView; signal?: PlanSignal | null }) {
+export function PlanCard({ plan, signal, why }: { plan: PlanView; signal?: PlanSignal | null; why?: string | null }) {
   const trust = signal !== undefined ? trustLines(signal) : null;
   const happening = plan.status === "on" || plan.status === "live";
   return (
@@ -61,7 +61,7 @@ export function PlanCard({ plan, signal }: { plan: PlanView; signal?: PlanSignal
             <KindIcon kind={plan.kind} className="h-4 w-4" />
             {kindLabel(plan.kind)}
           </span>
-          <span className="display truncate text-[1.75rem] leading-tight text-bone">{plan.place}</span>
+          <span className="display text-[1.75rem] leading-tight text-bone [overflow-wrap:anywhere]">{plan.place}</span>
         </div>
         <span className="mono shrink-0 pt-0.5 text-muted-2">{whoLine(plan)}</span>
       </div>
@@ -75,6 +75,7 @@ export function PlanCard({ plan, signal }: { plan: PlanView; signal?: PlanSignal
           </span>
         </span>
       </div>
+      {why ? <p className="mono -mt-2 text-lavender">for you · {why}</p> : null}
       {trust ? (
         <p className="mono -mt-1 flex items-center gap-2 text-lavender-soft">
           <TrustDot />
