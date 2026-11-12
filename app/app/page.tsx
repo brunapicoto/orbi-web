@@ -2,6 +2,7 @@ import Link from "next/link";
 import { OrbitDial } from "@/components/OrbitDial";
 import { KindIcon } from "@/components/app/KindIcon";
 import { PlanCard } from "@/components/app/PlanCard";
+import { ViewToggle } from "@/components/app/ViewToggle";
 import { KINDS } from "@/lib/app/kinds";
 import { rankPlans } from "@/lib/app/rank";
 import { requireMe } from "@/lib/app/session";
@@ -45,7 +46,10 @@ export default async function PlansHome({ searchParams }: { searchParams: Promis
       <header className="flex flex-col gap-2">
         <p className="mono text-muted-2">hi {me.firstName.toLowerCase()}</p>
         <h1 className="display text-[3rem]">what&apos;s the plan?</h1>
-        <p className="text-[16px] text-muted">everyone here is from your network.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[16px] text-muted">everyone here is from your network.</p>
+          <ViewToggle current="list" />
+        </div>
       </header>
 
       <Group title="happening now" plans={now} />

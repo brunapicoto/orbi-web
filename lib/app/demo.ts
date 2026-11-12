@@ -1,13 +1,13 @@
 import "server-only";
 import type { Store } from "@/lib/app/store";
-import type { NewPlan, PlanStatus, PlanView } from "@/lib/app/types";
+import type { NewPlan, PlanStatus, PlanTeaser, PlanView } from "@/lib/app/types";
 
 /**
  * Demo data, used only when Supabase keys are not set. Lives in server memory,
  * resets on restart, and follows the same rules as supabase/app.sql so the
  * preview behaves like the real thing. Everyone here is an example.
  */
-type DemoPlan = NewPlan & { id: string; hostId: string; rsvps: string[]; photos: { id: string; url: string }[] };
+type DemoPlan = NewPlan & { id: string; hostId: string; rsvps: string[]; photos: { id: string; url: string }[]; shareSlug?: string };
 
 type DemoState = {
   me: { id: string; firstName: string | null; inviteCode: string };
@@ -47,17 +47,24 @@ function seed(): DemoState {
     prefs: { kinds: ["run", "gallery", "sauna"], times: ["weekend-morning", "weekend-afternoon"], areas: ["brooklyn"], topics: ["finance"], groupSize: "small" },
     plans: [
       // happening now: the reveal
-      { id: "p-dinner", hostId: "lena", kind: "dinner", place: "Estela, Nolita", note: "late dinner, I've had this one saved for months.", startsAt: hours(-0.3), openSpots: 3, bringing: 0, rsvps: [ME, "theo", "naomi"], photos: [] },
+      { id: "p-dinner", hostId: "lena", kind: "dinner", place: "Estela, Nolita", note: "late dinner, I've had this one saved for months.", startsAt: hours(-0.3), openSpots: 3, bringing: 0, rsvps: [ME, "theo", "naomi"], lat: 40.7212, lng: -73.9952, neighborhood: "nolita", priceLevel: 3, photos: [] },
       // you're in, filling up
-      { id: "p-run", hostId: "marcus", kind: "run", place: "East River loop", note: "easy 5k pace. coffee after.", startsAt: nyAt(3, 8), openSpots: 4, bringing: 0, rsvps: [ME, "iris"], photos: [] },
+      { id: "p-run", hostId: "marcus", kind: "run", place: "East River loop", note: "easy 5k pace. coffee after.", startsAt: nyAt(3, 8), openSpots: 4, bringing: 0, rsvps: [ME, "iris"], lat: 40.7108, lng: -73.9772, neighborhood: "lower east side", priceLevel: 0, photos: [] },
       // open to you
-      { id: "p-paint", hostId: "iris", kind: "painting", place: "Brooklyn Brush, Williamsburg", note: "", startsAt: nyAt(2, 19), openSpots: 4, bringing: 0, rsvps: ["theo", "sofia"], photos: [] },
-      { id: "p-supper", hostId: "sofia", kind: "dinner", place: "Supper club, Bed-Stuy", note: "long table, family style. bring nothing.", startsAt: nyAt(5, 20), openSpots: 6, bringing: 0, rsvps: ["lena", "marcus", "naomi", "iris"], photos: [] },
-      { id: "p-net", hostId: "marcus", kind: "networking", topic: "finance", place: "Bryant Park Grill, Midtown", note: "breakfast before the markets open. buy-side, banks, anyone curious.", startsAt: nyAt(2, 8), openSpots: 4, bringing: 0, rsvps: ["sofia", "lena"], photos: [] },
-      { id: "p-sauna", hostId: "theo", kind: "sauna", place: "Bathhouse, Flatiron", note: "cold plunge is optional. mostly.", startsAt: nyAt(4, 17), openSpots: 3, bringing: 0, rsvps: [], photos: [] },
-      { id: "p-gallery", hostId: "sofia", kind: "gallery", place: "Chelsea, 24th st openings", note: "bringing my roommate, she knows everyone at these.", startsAt: nyAt(3, 18), openSpots: 3, bringing: 1, rsvps: ["naomi"], photos: [] },
-      // not your mutual's plan: never shown
-      { id: "p-hidden", hostId: "eva", kind: "drinks", place: "somewhere you can't see", note: "", startsAt: nyAt(2, 21), openSpots: 3, bringing: 0, rsvps: [], photos: [] },
+      { id: "p-paint", hostId: "iris", kind: "painting", place: "Brooklyn Brush, Williamsburg", note: "", startsAt: nyAt(2, 19), openSpots: 4, bringing: 0, rsvps: ["theo", "sofia"], lat: 40.7181, lng: -73.9578, neighborhood: "williamsburg", priceLevel: 2, photos: [] },
+      { id: "p-supper", hostId: "sofia", kind: "dinner", place: "Supper club, Bed-Stuy", note: "long table, family style. bring nothing.", startsAt: nyAt(5, 20), openSpots: 6, bringing: 0, rsvps: ["lena", "marcus", "naomi", "iris"], lat: 40.6872, lng: -73.9418, neighborhood: "bed-stuy", priceLevel: 2, photos: [] },
+      { id: "p-net", hostId: "marcus", kind: "networking", topic: "finance", place: "Bryant Park Grill, Midtown", note: "breakfast before the markets open. buy-side, banks, anyone curious.", startsAt: nyAt(2, 8), openSpots: 4, bringing: 0, rsvps: ["sofia", "lena"], lat: 40.7536, lng: -73.9832, neighborhood: "midtown", priceLevel: 1, photos: [] },
+      { id: "p-sauna", hostId: "theo", kind: "sauna", place: "Bathhouse, Flatiron", note: "cold plunge is optional. mostly.", startsAt: nyAt(4, 17), openSpots: 3, bringing: 0, rsvps: [], lat: 40.7411, lng: -73.9897, neighborhood: "flatiron", priceLevel: 2, photos: [] },
+      { id: "p-gallery", hostId: "sofia", kind: "gallery", place: "Chelsea, 24th st openings", note: "bringing my roommate, she knows everyone at these.", startsAt: nyAt(3, 18), openSpots: 3, bringing: 1, rsvps: ["naomi"], lat: 40.7479, lng: -74.0047, neighborhood: "chelsea", priceLevel: 0, photos: [] },
+      // made from links, around manhattan and brooklyn (the map)
+      { id: "p-pasta", hostId: "lena", kind: "dinner", title: "pasta bar in the west village", place: "Via Carota, Grove St", neighborhood: "west village", lat: 40.7331, lng: -74.0037, priceLevel: 2, costNote: "about $45 each", sourceUrl: "https://www.tiktok.com/@pastagirl.nyc/video/1", sourceAuthor: "@pastagirl.nyc", note: "saw this and couldn't stop thinking about the cacio e pepe.", startsAt: nyAt(2, 20), openSpots: 3, bringing: 0, minPeople: 4, rsvps: ["theo", "naomi"], photos: [], shareSlug: "pasta-demo" },
+      { id: "p-study", hostId: "naomi", kind: "study", title: "finals study session", place: "Butler Library, 3rd floor", neighborhood: "morningside heights", lat: 40.8064, lng: -73.9632, priceLevel: 0, note: "quiet hours, then tacos.", startsAt: nyAt(1, 14), openSpots: 4, bringing: 0, minPeople: 3, rsvps: ["iris"], photos: [] },
+      { id: "p-uws", hostId: "theo", kind: "run", title: "riverside sunset run", place: "Riverside Park at 79th", neighborhood: "upper west side", lat: 40.7843, lng: -73.9845, priceLevel: 0, note: "6 miles, chatty pace.", startsAt: nyAt(1, 18), openSpots: 5, bringing: 0, minPeople: 3, rsvps: ["sofia", "marcus"], photos: [] },
+      { id: "p-met", hostId: "iris", kind: "gallery", title: "the met after work", place: "The Met, 5th Ave", neighborhood: "upper east side", lat: 40.7794, lng: -73.9632, priceLevel: 1, costNote: "pay what you wish for ny residents", note: "", startsAt: nyAt(4, 18), openSpots: 4, bringing: 0, minPeople: 4, rsvps: ["lena", "theo"], photos: [] },
+      { id: "p-soccer", hostId: "marcus", kind: "sport", title: "pickup soccer", place: "McCarren Park turf", neighborhood: "williamsburg", lat: 40.7205, lng: -73.9515, priceLevel: 0, note: "bring a light and a dark shirt.", startsAt: nyAt(5, 10), openSpots: 9, bringing: 0, minPeople: 8, rsvps: ["theo", "lena", "iris"], photos: [] },
+      { id: "p-cook", hostId: "sofia", kind: "class", title: "handmade dumpling class", place: "Home Cooking NY, 117 W 26th", neighborhood: "midtown", lat: 40.7454, lng: -73.9925, priceLevel: 3, costNote: "$95, ingredients included", sourceUrl: "https://www.instagram.com/reel/demo", sourceAuthor: "@homecookingny", note: "", startsAt: nyAt(6, 19), openSpots: 5, bringing: 1, minPeople: 4, rsvps: ["naomi", "marcus"], photos: [] },
+      // not in your orbit: never shown in the app. its link (/p/dumplings-demo) shows how a friend of a friend joins
+      { id: "p-hidden", hostId: "eva", kind: "dinner", title: "dumplings in chinatown", place: "Nom Wah Tea Parlor", neighborhood: "chinatown", lat: 40.7142, lng: -73.9981, priceLevel: 1, costNote: "cash is easiest", note: "", startsAt: nyAt(2, 19), openSpots: 3, bringing: 0, minPeople: 3, rsvps: [], photos: [], shareSlug: "dumplings-demo" },
       // past
       { id: "p-past", hostId: "naomi", kind: "show", place: "Comedy Cellar", note: "", startsAt: nyAt(-3, 21), openSpots: 4, bringing: 0, rsvps: [ME, "lena", "marcus", "eva"], photos: [{ id: "ph-c", url: "/demo/comedy.jpg" }] },
       { id: "p-past2", hostId: "theo", kind: "run", place: "Williamsburg Bridge loop", note: "", startsAt: nyAt(-10, 8), openSpots: 4, bringing: 0, rsvps: [ME, "marcus", "iris"], photos: [{ id: "ph-r", url: "/demo/run.jpg" }] },
@@ -76,9 +83,10 @@ const connected = (a: string, b: string) => a === ME ? state().connections.inclu
 function status(p: DemoPlan): PlanStatus | "off" {
   const start = new Date(p.startsAt).getTime();
   const now = Date.now();
+  const need = (p.minPeople ?? 3) - 1;
   const count = p.rsvps.length + p.bringing;
-  if (now < start) return count < 2 ? "open" : "on";
-  if (count < 2) return "off";
+  if (now < start) return count < need ? "open" : "on";
+  if (count < need) return "off";
   return now < start + 6 * 3600_000 ? "live" : "past";
 }
 
@@ -86,6 +94,23 @@ function view(p: DemoPlan): PlanView {
   return {
     id: p.id, kind: p.kind, place: p.place, note: p.note || null, startsAt: p.startsAt, openSpots: p.openSpots,
     taken: p.rsvps.length, bringing: p.bringing, topic: p.topic ?? null, isHost: p.hostId === ME, joined: p.rsvps.includes(ME), status: status(p) as PlanStatus,
+    title: p.title ?? null, shareSlug: slugOf(p), sourceUrl: p.sourceUrl ?? null, sourceAuthor: p.sourceAuthor ?? null,
+    thumbnailUrl: p.thumbnailUrl ?? null, lat: p.lat ?? null, lng: p.lng ?? null, neighborhood: p.neighborhood ?? null,
+    priceLevel: p.priceLevel ?? null, costNote: p.costNote ?? null, minPeople: p.minPeople ?? 3, showHost: p.showHost ?? false,
+  };
+}
+
+const slugOf = (p: DemoPlan) => p.shareSlug ?? `${p.id.replace(/^p-/, "")}-demo`;
+
+function teaserOf(p: DemoPlan): PlanTeaser | null {
+  const st = status(p);
+  if (st !== "open" && st !== "on" && st !== "live") return null;
+  return {
+    title: p.title ?? null, kind: p.kind, topic: p.topic ?? null, place: p.place, neighborhood: p.neighborhood ?? null, note: p.note || null,
+    startsAt: p.startsAt, lat: p.lat ?? null, lng: p.lng ?? null, thumbnailUrl: p.thumbnailUrl ?? null, sourceAuthor: p.sourceAuthor ?? null,
+    priceLevel: p.priceLevel ?? null, costNote: p.costNote ?? null, going: 1 + p.rsvps.length + p.bringing, minPeople: p.minPeople ?? 3,
+    maxPeople: 1 + p.bringing + p.openSpots, status: st, hostName: p.showHost ? nameOf(p.hostId) : null,
+    isHost: p.hostId === ME, joined: p.rsvps.includes(ME), connected: p.hostId === ME || connected(p.hostId, ME),
   };
 }
 
@@ -141,7 +166,7 @@ export async function demoStore(): Promise<Store> {
     async people(id) {
       const p = find(id);
       const inPlan = p.hostId === ME || p.rsvps.includes(ME);
-      if (!inPlan || new Date(p.startsAt).getTime() > Date.now() || p.rsvps.length + p.bringing < 2) return [];
+      if (!inPlan || new Date(p.startsAt).getTime() > Date.now() || p.rsvps.length + p.bringing < (p.minPeople ?? 3) - 1) return [];
       return [p.hostId, ...p.rsvps]
         .map((uid) => ({ id: uid, firstName: nameOf(uid), isHost: uid === p.hostId, isMe: uid === ME }))
         .sort((a, b) => Number(b.isHost) - Number(a.isHost) || a.firstName.localeCompare(b.firstName));
@@ -149,7 +174,7 @@ export async function demoStore(): Promise<Store> {
     async groupMutuals(id) {
       const p = find(id);
       const inPlan = p.hostId === ME || p.rsvps.includes(ME);
-      if (!inPlan || new Date(p.startsAt).getTime() > Date.now() || p.rsvps.length + p.bringing < 2) return 0;
+      if (!inPlan || new Date(p.startsAt).getTime() > Date.now() || p.rsvps.length + p.bringing < (p.minPeople ?? 3) - 1) return 0;
       // demo stand-in for "different friends in common with the group": overlaps shrink the sum
       const counts = [p.hostId, ...p.rsvps].filter((u) => u !== ME).map((u) => s.mutualsWithMe[u] ?? 0);
       return Math.max(Math.max(0, ...counts), Math.round(counts.reduce((a, b) => a + b, 0) * 0.6));
@@ -233,6 +258,25 @@ export async function demoStore(): Promise<Store> {
       const id = `p-${Math.random().toString(36).slice(2, 8)}`;
       s.plans.push({ ...input, id, hostId: ME, rsvps: [], photos: [] });
       return id;
+    },
+    async teaser(slug) {
+      const p = s.plans.find((x) => slugOf(x) === slug);
+      return p ? teaserOf(p) : null;
+    },
+    async linkHostName(slug) {
+      const p = s.plans.find((x) => slugOf(x) === slug);
+      return p && new Date(p.startsAt).getTime() > Date.now() ? nameOf(p.hostId) : null;
+    },
+    async joinViaLink(slug) {
+      const p = s.plans.find((x) => slugOf(x) === slug);
+      if (!p) throw new Error("plan not found");
+      if (p.hostId === ME) throw new Error("you are hosting this plan");
+      if (new Date(p.startsAt).getTime() <= Date.now()) throw new Error("this plan has started");
+      if (!s.connections.includes(p.hostId)) s.connections.push(p.hostId);
+      if (p.rsvps.includes(ME)) return p.id;
+      if (p.rsvps.length >= p.openSpots) throw new Error("this plan is full");
+      p.rsvps.push(ME);
+      return p.id;
     },
     async cancelPlan(id) {
       const p = find(id);

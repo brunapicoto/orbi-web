@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
 import { demoStore } from "@/lib/app/demo";
-import type { Me, MemoryInvite, MemoryView, NewMemory, NewPlan, OrbitState, Prefs, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
+import type { Me, PlanTeaser, MemoryInvite, MemoryView, NewMemory, NewPlan, OrbitState, Prefs, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
 
 /** Everything the app reads and writes. Two implementations: Supabase, or demo data. */
 export interface Store {
@@ -27,6 +27,12 @@ export interface Store {
   keepInOrbit(id: string, target: string): Promise<"picked" | "connected">;
   dropPick(id: string, target: string): Promise<void>;
   createPlan(input: NewPlan): Promise<string>;
+  /** the public link page; works signed out */
+  teaser(slug: string): Promise<PlanTeaser | null>;
+  /** whose orbit you'd join by saying yes from a link (signed in only) */
+  linkHostName(slug: string): Promise<string | null>;
+  /** "i'm in" from a link: connect with the host, then join. returns the plan id */
+  joinViaLink(slug: string): Promise<string>;
   cancelPlan(id: string): Promise<void>;
   join(id: string): Promise<void>;
   leave(id: string): Promise<void>;
@@ -64,6 +70,18 @@ const toMemory = (r: MemRow): MemoryView => ({
   withNames: r.with_names ?? [], waiting: r.waiting ?? 0, invitedBy: r.invited_by ?? null,
 });
 
+type TeaserRow = {
+  title: string | null; kind: string; topic: string | null; place: string; neighborhood: string | null; note: string | null; starts_at: string;
+  lat: number | null; lng: number | null; thumbnail_url: string | null; source_author: string | null; price_level: number | null; cost_note: string | null;
+  going: number; min_people: number; max_people: number; status: PlanStatus; host_name: string | null; is_host: boolean; joined: boolean; connected: boolean;
+};
+const toTeaser = (r: TeaserRow): PlanTeaser => ({
+  title: r.title, kind: r.kind, topic: r.topic, place: r.place, neighborhood: r.neighborhood, note: r.note, startsAt: r.starts_at,
+  lat: r.lat, lng: r.lng, thumbnailUrl: r.thumbnail_url, sourceAuthor: r.source_author, priceLevel: r.price_level, costNote: r.cost_note,
+  going: r.going, minPeople: r.min_people, maxPeople: r.max_people, status: r.status, hostName: r.host_name,
+  isHost: r.is_host, joined: r.joined, connected: r.connected,
+});
+
 async function supabaseStore(): Promise<Store> {
   const sb = await supabaseServer();
 
@@ -76,10 +94,16 @@ async function supabaseStore(): Promise<Store> {
   type Row = {
     id: string; kind: string; place: string; note: string | null; starts_at: string;
     open_spots: number; taken: number; bringing: number | null; topic: string | null; is_host: boolean; joined: boolean; status: PlanStatus;
+    title: string | null; share_slug: string | null; source_url: string | null; source_author: string | null; thumbnail_url: string | null;
+    lat: number | null; lng: number | null; neighborhood: string | null; price_level: number | null; cost_note: string | null;
+    min_people: number | null; show_host: boolean | null;
   };
   const toView = (r: Row): PlanView => ({
     id: r.id, kind: r.kind, place: r.place, note: r.note, startsAt: r.starts_at, openSpots: r.open_spots,
     taken: r.taken, bringing: r.bringing ?? 0, topic: r.topic ?? null, isHost: r.is_host, joined: r.joined, status: r.status,
+    title: r.title ?? null, shareSlug: r.share_slug ?? null, sourceUrl: r.source_url ?? null, sourceAuthor: r.source_author ?? null,
+    thumbnailUrl: r.thumbnail_url ?? null, lat: r.lat ?? null, lng: r.lng ?? null, neighborhood: r.neighborhood ?? null,
+    priceLevel: r.price_level ?? null, costNote: r.cost_note ?? null, minPeople: r.min_people ?? 3, showHost: r.show_host ?? false,
   });
 
   const store: Store = {
@@ -200,11 +224,31 @@ async function supabaseStore(): Promise<Store> {
     async createPlan(input) {
       const { data, error } = await sb
         .from("plans")
-        .insert({ kind: input.kind, place: input.place, note: input.note || null, starts_at: input.startsAt, open_spots: input.openSpots, bringing: input.bringing, topic: input.kind === "networking" ? input.topic ?? null : null })
+        .insert({
+          kind: input.kind, place: input.place, note: input.note || null, starts_at: input.startsAt, open_spots: input.openSpots, bringing: input.bringing,
+          topic: input.kind === "networking" ? input.topic ?? null : null,
+          title: input.title || null, source_url: input.sourceUrl || null, source_author: input.sourceAuthor || null, thumbnail_url: input.thumbnailUrl || null,
+          lat: input.lat ?? null, lng: input.lng ?? null, neighborhood: input.neighborhood || null, price_level: input.priceLevel ?? null,
+          cost_note: input.costNote || null, min_people: input.minPeople ?? 3, show_host: input.showHost ?? false,
+        })
         .select("id")
         .single();
       if (error) throw error;
       return data.id as string;
+    },
+    async teaser(slug) {
+      const { data, error } = await sb.rpc("plan_teaser", { slug });
+      if (error || !data?.length) return null;
+      return toTeaser((data as TeaserRow[])[0]);
+    },
+    async linkHostName(slug) {
+      const { data } = await sb.rpc("link_host_name", { slug });
+      return (data as string | null) ?? null;
+    },
+    async joinViaLink(slug) {
+      const { data, error } = await sb.rpc("join_via_link", { slug });
+      if (error) throw error;
+      return data as string;
     },
     async cancelPlan(id) {
       const { error } = await sb.from("plans").delete().eq("id", id);

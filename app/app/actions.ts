@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { geocode, platformOf, readLink, suggestPlan, type LinkSource, type PlanDraft } from "@/lib/app/fromLink";
 import { KIND_IDS, TOPIC_IDS } from "@/lib/app/kinds";
 import { friendly, getStore } from "@/lib/app/store";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
@@ -64,13 +65,27 @@ export async function createPlan(_prev: FormState, fd: FormData): Promise<FormSt
   const openSpots = Number(fd.get("openSpots"));
   const bringing = Number(fd.get("bringing") ?? 0);
   const topic = String(fd.get("topic") ?? "");
+  const title = cleanName(fd.get("title")).toLowerCase();
+  const minPeople = Number(fd.get("minPeople") ?? 3);
+  const priceRaw = String(fd.get("priceLevel") ?? "");
+  const priceLevel = priceRaw === "" ? null : Number(priceRaw);
+  const costNote = cleanName(fd.get("costNote"));
+  const neighborhood = cleanName(fd.get("neighborhood")).toLowerCase();
+  const lat = fd.get("lat") ? Number(fd.get("lat")) : null;
+  const lng = fd.get("lng") ? Number(fd.get("lng")) : null;
+  const sourceUrl = String(fd.get("sourceUrl") ?? "").trim();
+  const sourceAuthor = cleanName(fd.get("sourceAuthor"));
+  const thumbnailUrl = String(fd.get("thumbnailUrl") ?? "").trim();
+  const showHost = fd.get("showHost") === "on";
 
   const fieldErrors: Record<string, string> = {};
   if (!KIND_IDS.includes(kind)) fieldErrors.kind = "pick what kind of plan it is.";
   else if (kind === "networking" && !TOPIC_IDS.includes(topic)) fieldErrors.kind = "pick the field for your networking plan.";
+  if (title.length > 80) fieldErrors.title = "keep the title under 80 characters.";
   if (!place) fieldErrors.place = "add a place.";
   else if (place.length > 80) fieldErrors.place = "keep it under 80 characters.";
   if (note.length > 280) fieldErrors.note = "keep it under 280 characters.";
+  if (costNote.length > 80) fieldErrors.costNote = "keep it under 80 characters.";
   const when = new Date(startsAt);
   if (!startsAt || Number.isNaN(when.getTime())) fieldErrors.startsAt = "pick a day and time.";
   else if (when.getTime() < Date.now() + 30 * 60_000) fieldErrors.startsAt = "pick a time at least 30 minutes from now.";
@@ -78,17 +93,74 @@ export async function createPlan(_prev: FormState, fd: FormData): Promise<FormSt
   else if (openSpots > 11) fieldErrors.openSpots = "11 open spots at most.";
   else if (!Number.isInteger(bringing) || bringing < 0 || bringing > 10) fieldErrors.openSpots = "check the group size.";
   else if (1 + bringing + openSpots < 3) fieldErrors.openSpots = "plans start at 3: you plus at least 2.";
+  else if (!Number.isInteger(minPeople) || minPeople < 3 || minPeople > 1 + bringing + openSpots) fieldErrors.openSpots = "the minimum is between 3 and the size of the group.";
+  if (priceLevel !== null && !(Number.isInteger(priceLevel) && priceLevel >= 0 && priceLevel <= 3)) fieldErrors.costNote = "pick a price.";
   if (Object.keys(fieldErrors).length) return { fieldErrors };
+
+  // the map pin: only kept if it's a real point around new york
+  const pin = lat !== null && lng !== null && lat > 40.3 && lat < 41.2 && lng > -74.6 && lng < -73.4 ? { lat, lng } : { lat: null, lng: null };
+  const fromLink = sourceUrl && platformOf(sourceUrl) ? sourceUrl.slice(0, 500) : null;
 
   const store = await getStore();
   let id: string;
   try {
-    id = await store.createPlan({ kind, place, note, startsAt: when.toISOString(), openSpots, bringing, topic: kind === "networking" ? topic : null });
+    id = await store.createPlan({
+      kind, place, note, startsAt: when.toISOString(), openSpots, bringing, topic: kind === "networking" ? topic : null,
+      title: title || null, minPeople, priceLevel, costNote: costNote || null, neighborhood: neighborhood.slice(0, 40) || null, ...pin,
+      sourceUrl: fromLink, sourceAuthor: fromLink ? sourceAuthor.slice(0, 60) || null : null,
+      thumbnailUrl: fromLink && thumbnailUrl.startsWith("https://") && thumbnailUrl.length <= 1000 ? thumbnailUrl : null,
+      showHost,
+    });
   } catch (e) {
     return { error: friendly(e) };
   }
   revalidatePath("/app");
   redirect(`/app/plan/${id}?posted=1`);
+}
+
+// ---------------------------------------------------------------- plans from a link
+
+export type DraftState = { error?: string; draft?: PlanDraft; source?: LinkSource; needsCaption?: boolean };
+
+/** Paste a link: read it, ask for a draft. Nothing is saved until the person posts the plan. */
+export async function draftFromLink(_prev: DraftState, fd: FormData): Promise<DraftState> {
+  const url = String(fd.get("url") ?? "").trim();
+  const caption = String(fd.get("caption") ?? "").trim().slice(0, 2000);
+  const platform = platformOf(url);
+  if (!platform) return { error: "paste a tiktok or instagram link (it starts with https://)." };
+  const store = await getStore();
+  if (!(await store.me())) return { error: "sign in first." };
+  const source = await readLink(url, caption);
+  if (!source.caption) {
+    return {
+      needsCaption: true,
+      error: platform === "instagram"
+        ? "instagram doesn't share captions with other apps. paste the caption below, or a few words about the place."
+        : "we couldn't read this video. paste its caption below, or a few words about the place.",
+    };
+  }
+  const draft = await suggestPlan(source);
+  return { draft, source };
+}
+
+/** The pin picker's search box. */
+export async function findPlace(query: string) {
+  const store = await getStore();
+  if (!(await store.me())) return null;
+  return geocode(query);
+}
+
+/** "i'm in" from a public link: connect with the host, then join. */
+export async function joinFromLink(slug: string): Promise<FormState> {
+  const store = await getStore();
+  try {
+    await store.joinViaLink(slug);
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath("/app");
+  revalidatePath(`/p/${slug}`);
+  return { ok: true };
 }
 
 export async function cancelPlan(id: string) {

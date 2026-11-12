@@ -122,3 +122,21 @@ body {
     transition: none;
   }
 }
+
+/* maps (leaflet): dark while tiles load, plain drawn pins, quiet attribution */
+.leaflet-container {
+  background: #1a1618;
+  font-family: var(--font-plex-mono), monospace;
+}
+.orbi-pin {
+  background: none;
+  border: 0;
+}
+.leaflet-control-attribution {
+  background: rgba(14, 12, 13, 0.75) !important;
+  color: #9c9597 !important;
+  font-size: 10px;
+}
+.leaflet-control-attribution a {
+  color: #c9d2fa !important;
+}

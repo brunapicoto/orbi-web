@@ -28,9 +28,12 @@ An installable web app (add to home screen) where people post plans and RSVP bli
 - **the rule of 3:** a plan is on once the host plus 2 say yes; if it doesn't reach 3 by start time it quietly disappears
 - **the reveal:** at start time the people in the plan see who's coming
 - **after:** who was there, a group photo, "host the next one"
+- **from a link** (`/app/new/link`): paste a TikTok or Reel. TikTok's public oEmbed gives the caption and thumbnail (Instagram has no keyless option, so people paste the caption). Claude suggests title, place, neighborhood, price, category and a day; OpenStreetMap places the pin, which you can drag. You set the minimum (3 or more) and the group size.
+- **share link** (`/p/<slug>`): a public teaser with the count ("2 of 4 in", live), a small map and a WhatsApp preview image. Never who's in; the host's name only if they turn it on. Saying "i'm in" from it signs you in and, if you're not connected to the host yet, connects you first (the link works as the host's invite), so plans stay mutuals-only.
+- **map** (`/app/map`): your mutuals' plans and the ones you're in, pins by category, filters (category, when, price, status) shared by map and list; the list follows the visible area.
 
 The privacy rules are enforced in the database (`supabase/app.sql`), not just in the UI.
-`supabase/tests/` checks them against a local Postgres (38 scenarios).
+`supabase/tests/` checks them against a local Postgres (113 checks).
 
 **Demo mode:** without Supabase keys, `/app` runs on example data held in memory, with a banner that says so.
 
@@ -39,11 +42,12 @@ The privacy rules are enforced in the database (`supabase/app.sql`), not just in
 2. Authentication > URL Configuration: set the Site URL to your domain and add `https://<your-domain>/auth/callback` to the redirect URLs.
 3. Authentication > Emails: the default sender works for testing but is heavily rate limited; set up custom SMTP (for example Resend) before inviting people.
 
-Not built yet: email reminders ("your plan is on", "starts in 1 hour"), push notifications, chat, maps.
+Not built yet: email or SMS reminders, push notifications, chat, payments.
 
 ## Deploy (Vercel)
 
 Import this repo in Vercel. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `NEXT_PUBLIC_SITE_URL` (the live domain, used for Open Graph links).
+For plans from links, also add `ANTHROPIC_API_KEY` (server-only) and `GEOCODER_CONTACT_EMAIL`. Map tiles (CARTO, on OpenStreetMap data) need no key.
 
 ## Placeholders to fill
 

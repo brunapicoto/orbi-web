@@ -29,7 +29,7 @@ create table if not exists public.connections (
 create table if not exists public.plans (
   id uuid primary key default gen_random_uuid(),
   host_id uuid not null default auth.uid() references public.profiles (id) on delete cascade,
-  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'other')),
+  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'study', 'sport', 'class', 'other')),
   place text not null check (char_length(btrim(place)) between 1 and 80),
   note text check (note is null or char_length(note) <= 280),
   starts_at timestamptz not null,
@@ -53,9 +53,39 @@ alter table public.plans add constraint plans_min_group check (1 + bringing + op
 -- networking plans carry a field (finance, consulting...); kept in sync with lib/app/kinds.ts
 alter table public.plans add column if not exists topic text;
 alter table public.plans drop constraint if exists plans_kind_check;
-alter table public.plans add constraint plans_kind_check check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'other'));
+alter table public.plans add constraint plans_kind_check check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'study', 'sport', 'class', 'other'));
 alter table public.plans drop constraint if exists plans_topic_check;
 alter table public.plans add constraint plans_topic_check check (topic is null or (kind = 'networking' and topic in ('finance', 'consulting', 'tech', 'startups', 'marketing', 'law', 'health', 'creative', 'policy', 'school')));
+-- plans made from a link (a tiktok or reel), with a place on the map and a minimum to happen.
+-- share_slug is the public link: /p/<slug>. it shows a teaser only, never the host unless show_host.
+alter table public.plans add column if not exists title text;
+alter table public.plans add column if not exists share_slug text not null default substr(md5(gen_random_uuid()::text), 1, 10);
+alter table public.plans add column if not exists source_url text;
+alter table public.plans add column if not exists source_author text;
+alter table public.plans add column if not exists thumbnail_url text;
+alter table public.plans add column if not exists lat double precision;
+alter table public.plans add column if not exists lng double precision;
+alter table public.plans add column if not exists neighborhood text;
+alter table public.plans add column if not exists price_level int;
+alter table public.plans add column if not exists cost_note text;
+alter table public.plans add column if not exists min_people int not null default 3;
+alter table public.plans add column if not exists show_host boolean not null default false;
+alter table public.plans drop constraint if exists plans_link_fields;
+alter table public.plans add constraint plans_link_fields check (
+  (title is null or char_length(btrim(title)) between 1 and 80)
+  and (source_url is null or (char_length(source_url) <= 500 and source_url ~ '^https://'))
+  and (source_author is null or char_length(source_author) <= 60)
+  and (thumbnail_url is null or (char_length(thumbnail_url) <= 1000 and thumbnail_url ~ '^https://'))
+  and (neighborhood is null or char_length(neighborhood) <= 40)
+  and (cost_note is null or char_length(cost_note) <= 80)
+  and (price_level is null or price_level between 0 and 3)
+  and ((lat is null) = (lng is null))
+  and (lat is null or (lat between -90 and 90 and lng between -180 and 180))
+);
+alter table public.plans drop constraint if exists plans_min_people;
+-- the minimum counts everyone, host included, and can't be more than the group can hold
+alter table public.plans add constraint plans_min_people check (min_people between 3 and 12 and min_people <= 1 + bringing + open_spots);
+create unique index if not exists plans_share_slug_idx on public.plans (share_slug);
 create index if not exists plans_host_idx on public.plans (host_id);
 create index if not exists plans_starts_idx on public.plans (starts_at);
 
@@ -158,6 +188,20 @@ as $$
   end;
 $$;
 
+-- the same, with the plan's own minimum (everyone counted, host included)
+create or replace function public.plan_status(starts timestamptz, taken int, min_people int)
+returns text
+language sql stable
+as $$
+  select case
+    when now() < starts and taken + 1 < min_people then 'open'
+    when now() < starts then 'on'
+    when taken + 1 < min_people then 'off'
+    when now() < starts + interval '6 hours' then 'live'
+    else 'past'
+  end;
+$$;
+
 -- ---------------------------------------------------------------- row level security
 
 alter table public.profiles enable row level security;
@@ -226,7 +270,10 @@ drop function if exists public.my_plans();
 create function public.my_plans()
 returns table (
   id uuid, kind text, place text, note text, starts_at timestamptz,
-  open_spots int, taken int, bringing int, topic text, is_host boolean, joined boolean, status text
+  open_spots int, taken int, bringing int, topic text, is_host boolean, joined boolean, status text,
+  title text, share_slug text, source_url text, source_author text, thumbnail_url text,
+  lat double precision, lng double precision, neighborhood text, price_level int, cost_note text,
+  min_people int, show_host boolean
 )
 language sql stable security definer set search_path = public
 as $$
@@ -236,7 +283,9 @@ as $$
          p.topic,
          p.host_id = auth.uid() as is_host,
          exists (select 1 from rsvps r where r.plan_id = p.id and r.user_id = auth.uid()) as joined,
-         plan_status(p.starts_at, plan_count(p.id)) as status
+         plan_status(p.starts_at, plan_count(p.id), p.min_people) as status,
+         p.title, p.share_slug, p.source_url, p.source_author, p.thumbnail_url,
+         p.lat, p.lng, p.neighborhood, p.price_level, p.cost_note, p.min_people, p.show_host
   from plans p
   where auth.uid() is not null
     and (
@@ -244,7 +293,7 @@ as $$
       or exists (select 1 from rsvps r where r.plan_id = p.id and r.user_id = auth.uid())
       or (are_connected(p.host_id, auth.uid()) and p.starts_at > now())
     )
-    and plan_status(p.starts_at, plan_count(p.id)) <> 'off'
+    and plan_status(p.starts_at, plan_count(p.id), p.min_people) <> 'off'
   order by p.starts_at;
 $$;
 
@@ -291,7 +340,7 @@ as $$
   join profiles pr on pr.id = pl.host_id or pr.id in (select user_id from rsvps where plan_id = p)
   where is_in_plan(p, auth.uid())
     and pl.starts_at <= now()
-    and plan_count(p) >= 2
+    and plan_count(p) + 1 >= pl.min_people
   order by (pr.id = pl.host_id) desc, pr.first_name;
 $$;
 
@@ -321,7 +370,7 @@ as $$
   where f.id not in (select id from members)
     and is_in_plan(p, auth.uid())
     and (select starts_at from pl) <= now()
-    and plan_count(p) >= 2;
+    and plan_count(p) + 1 >= (select min_people from pl);
 $$;
 
 -- ---------------------------------------------------------------- keep in orbit
@@ -377,7 +426,7 @@ $$;
 create table if not exists public.memories (
   id uuid primary key default gen_random_uuid(),
   created_by uuid not null default auth.uid() references public.profiles (id) on delete cascade,
-  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'other')),
+  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'study', 'sport', 'class', 'other')),
   place text not null check (char_length(btrim(place)) between 1 and 80),
   happened_on date not null,
   note text check (note is null or char_length(note) <= 280),
@@ -385,7 +434,7 @@ create table if not exists public.memories (
 );
 
 alter table public.memories drop constraint if exists memories_kind_check;
-alter table public.memories add constraint memories_kind_check check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'other'));
+alter table public.memories add constraint memories_kind_check check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'study', 'sport', 'class', 'other'));
 
 create table if not exists public.memory_people (
   memory_id uuid not null references public.memories (id) on delete cascade,
@@ -519,9 +568,12 @@ create table if not exists public.preferences (
   areas text[] not null default '{}',
   group_size text check (group_size is null or group_size in ('small', 'medium', 'big')),
   updated_at timestamptz not null default now(),
-  check (cardinality(kinds) <= 11 and cardinality(times) <= 4 and cardinality(areas) <= 4)
+  check (cardinality(kinds) <= 14 and cardinality(times) <= 4 and cardinality(areas) <= 4)
 );
 alter table public.preferences add column if not exists topics text[] not null default '{}';
+-- room for every plan type (lib/app/kinds.ts), on projects created before study, sport and class
+alter table public.preferences drop constraint if exists preferences_check;
+alter table public.preferences add constraint preferences_check check (cardinality(kinds) <= 14 and cardinality(times) <= 4 and cardinality(areas) <= 4);
 alter table public.preferences enable row level security;
 drop policy if exists preferences_own on public.preferences;
 create policy preferences_own on public.preferences for all to authenticated
@@ -587,6 +639,73 @@ language sql stable security definer set search_path = public
 as $$
   select first_name from profiles where invite_code = lower(btrim(code));
 $$;
+
+-- ---------------------------------------------------------------- the public plan link (/p/<slug>)
+-- Anyone with the link sees a teaser: what, where, when and how many are in. Never who.
+-- The host's first name only if they chose to show it.
+drop function if exists public.plan_teaser(text);
+create function public.plan_teaser(slug text)
+returns table (
+  title text, kind text, topic text, place text, neighborhood text, note text, starts_at timestamptz,
+  lat double precision, lng double precision, thumbnail_url text, source_author text,
+  price_level int, cost_note text, going int, min_people int, max_people int, status text,
+  host_name text, is_host boolean, joined boolean, connected boolean
+)
+language sql stable security definer set search_path = public
+as $$
+  select p.title, p.kind, p.topic, p.place, p.neighborhood, p.note, p.starts_at,
+         p.lat, p.lng, p.thumbnail_url, p.source_author,
+         p.price_level, p.cost_note,
+         1 + plan_count(p.id) as going,
+         p.min_people,
+         1 + p.bringing + p.open_spots as max_people,
+         plan_status(p.starts_at, plan_count(p.id), p.min_people) as status,
+         case when p.show_host then (select first_name from profiles where id = p.host_id) end as host_name,
+         coalesce(p.host_id = auth.uid(), false) as is_host,
+         coalesce(exists (select 1 from rsvps r where r.plan_id = p.id and r.user_id = auth.uid()), false) as joined,
+         coalesce(auth.uid() is not null and are_connected(p.host_id, auth.uid()), false) as connected
+  from plans p
+  where p.share_slug = btrim(slug)
+    and plan_status(p.starts_at, plan_count(p.id), p.min_people) in ('open', 'on', 'live');
+$$;
+
+-- Saying "i'm in" from the link: the link works as the host's invite.
+-- You connect with the host (you'll see each other's plans), then you join. Mutuals only, still.
+create or replace function public.join_via_link(slug text)
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare
+  me uuid := auth.uid();
+  pl plans%rowtype;
+begin
+  if me is null then raise exception 'not signed in'; end if;
+  if not exists (select 1 from profiles where id = me) then raise exception 'finish your profile first'; end if;
+  select * into pl from plans where share_slug = btrim(slug);
+  if not found then raise exception 'plan not found'; end if;
+  if pl.host_id = me then raise exception 'you are hosting this plan'; end if;
+  if pl.starts_at <= now() then raise exception 'this plan has started'; end if;
+  insert into connections (user_a, user_b)
+  values (least(me, pl.host_id), greatest(me, pl.host_id))
+  on conflict do nothing;
+  perform join_plan(pl.id);
+  return pl.id;
+end;
+$$;
+
+-- who you'd connect with by joining from a link (shown before you say yes). signed-in only.
+create or replace function public.link_host_name(slug text)
+returns text
+language sql stable security definer set search_path = public
+as $$
+  select pr.first_name from plans p join profiles pr on pr.id = p.host_id
+  where p.share_slug = btrim(slug) and auth.uid() is not null and p.starts_at > now();
+$$;
+
+revoke all on function public.plan_teaser(text), public.join_via_link(text), public.link_host_name(text),
+  public.plan_status(timestamptz, int, int) from public;
+grant execute on function public.plan_teaser(text) to anon, authenticated;
+grant execute on function public.join_via_link(text), public.link_host_name(text) to authenticated;
 
 revoke all on function public.mutual_count(uuid, uuid), public.plan_signal(uuid), public.plan_group_mutuals(uuid) from public, anon, authenticated;
 grant execute on function public.plan_signal(uuid), public.plan_group_mutuals(uuid) to authenticated;

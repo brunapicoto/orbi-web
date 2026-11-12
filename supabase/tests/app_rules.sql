@@ -245,6 +245,54 @@ select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
 select pg_temp.check((select count(*) from preferences) = 0, 'Ana cannot see Bia''s preferences');
 reset role;
 
+-- ---------------------------------------------------------------- plans from a link, the public page
+insert into auth.users values ('00000000-0000-0000-0000-000000000011');
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-000000000011'); insert into profiles (id, first_name) values (auth.uid(), 'Hugo');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.expect_fail($$insert into plans (kind, place, starts_at, open_spots, min_people) values ('dinner','Lilia', now() + interval '1 day', 3, 2)$$, 'the minimum is never below 3');
+select pg_temp.expect_fail($$insert into plans (kind, place, starts_at, open_spots, min_people) values ('dinner','Lilia', now() + interval '1 day', 3, 5)$$, 'the minimum cannot be more than the group holds');
+select pg_temp.expect_fail($$insert into plans (kind, place, starts_at, open_spots, lat) values ('dinner','Lilia', now() + interval '1 day', 3, 40.7)$$, 'a pin needs both coordinates');
+select pg_temp.expect_fail($$insert into plans (kind, place, starts_at, open_spots, source_url) values ('dinner','Lilia', now() + interval '1 day', 3, 'javascript:alert(1)')$$, 'links must be https');
+insert into plans (id, kind, title, place, neighborhood, starts_at, open_spots, min_people, share_slug, lat, lng, price_level, source_url)
+  values ('11111111-0000-0000-0000-000000000008', 'dinner', 'pasta bar', 'Via Carota', 'west village', now() + interval '2 days', 3, 4, 'pastabar01', 40.733, -74.004, 2, 'https://www.tiktok.com/@x/video/1');
+insert into plans (id, kind, place, starts_at, open_spots, show_host, share_slug)
+  values ('11111111-0000-0000-0000-000000000009', 'study', 'Butler Library', now() + interval '2 days', 3, true, 'butler0001');
+select pg_temp.check((select share_slug from my_plans() where id = '11111111-0000-0000-0000-000000000005') is not null, 'every plan gets a share link, old ones too');
+select pg_temp.check((select min_people from my_plans() where id = '11111111-0000-0000-0000-000000000005') = 3, 'old plans keep a minimum of 3');
+reset role;
+
+set role anon;
+select pg_temp.check((select title from plan_teaser('pastabar01')) = 'pasta bar', 'anyone with the link sees the teaser');
+select pg_temp.check((select going from plan_teaser('pastabar01')) = 1 and (select status from plan_teaser('pastabar01')) = 'open', 'with "1 of 4 in", waiting');
+select pg_temp.check((select host_name from plan_teaser('pastabar01')) is null, 'and not who is hosting');
+select pg_temp.check(pg_get_function_result('public.plan_teaser(text)'::regprocedure) not ilike '%host_id%', 'the teaser never returns a host id');
+select pg_temp.check((select host_name from plan_teaser('butler0001')) = 'Ana', 'unless the host chose to show their name');
+select pg_temp.check((select count(*) from plan_teaser('nope')) = 0, 'an unknown link shows nothing');
+select pg_temp.expect_fail($$select join_via_link('pastabar01')$$, 'signed-out visitors cannot join');
+select pg_temp.expect_fail($$select link_host_name('pastabar01')$$, 'or ask who hosts');
+select pg_temp.expect_fail($$select * from plans$$, 'or read plans directly');
+reset role;
+
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-000000000011');
+select pg_temp.check((select count(*) from my_plans()) = 0, 'Hugo, not in Ana''s orbit, does not see her plans in the app');
+select pg_temp.check((select connected from plan_teaser('pastabar01')) = false, 'the link page knows he is not connected yet');
+select pg_temp.check(link_host_name('pastabar01') = 'Ana', 'before saying yes he sees whose orbit he would join');
+select pg_temp.check(join_via_link('pastabar01') = '11111111-0000-0000-0000-000000000008', 'he says "i''m in" from the link');
+select pg_temp.check(are_connected('00000000-0000-0000-0000-00000000000a', auth.uid()), 'which puts him in Ana''s orbit');
+select pg_temp.check((select joined from plan_teaser('pastabar01')) and (select going from plan_teaser('pastabar01')) = 2, 'and in the plan: 2 of 4');
+select pg_temp.check(join_via_link('pastabar01') = '11111111-0000-0000-0000-000000000008', 'saying it twice changes nothing');
+select pg_temp.check((select going from plan_teaser('pastabar01')) = 2, 'still 2 of 4');
+select pg_temp.check((select count(*) from plan_people('11111111-0000-0000-0000-000000000008')) = 0, 'he still cannot see who else is in');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b'); select join_plan('11111111-0000-0000-0000-000000000008');
+select pg_temp.check((select status from plan_teaser('pastabar01')) = 'open', '3 of 4 is not enough for a plan that needs 4');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c'); select join_plan('11111111-0000-0000-0000-000000000008');
+select pg_temp.check((select status from plan_teaser('pastabar01')) = 'on', '4 of 4: confirmed');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.expect_fail($$select join_via_link('pastabar01')$$, 'the host cannot join their own plan from the link');
+reset role;
+
 -- signed-out visitors
 set role anon;
 select pg_temp.expect_fail($$select * from my_plans()$$, 'signed-out visitors cannot call the app functions');

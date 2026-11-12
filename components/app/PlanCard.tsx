@@ -27,6 +27,8 @@ export function planLine(plan: PlanView) {
   if (plan.status === "live") return "happening now";
   if (plan.status === "past") return "it happened";
   if (left <= 0) return "full";
+  // still waiting: how close it is to happening
+  if (plan.status === "open") return `${plan.taken + 1 + plan.bringing} of ${plan.minPeople} in`;
   return `${left} ${left === 1 ? "spot" : "spots"} left`;
 }
 
@@ -61,7 +63,13 @@ export function PlanCard({ plan, signal, why }: { plan: PlanView; signal?: PlanS
             <KindIcon kind={plan.kind} className="h-4 w-4" />
             {planLabel(plan)}
           </span>
-          <span className="display text-[1.75rem] leading-tight text-bone [overflow-wrap:anywhere]">{plan.place}</span>
+          <span className="display text-[1.75rem] leading-tight text-bone [overflow-wrap:anywhere]">{plan.title || plan.place}</span>
+          {plan.title ? (
+            <span className="text-[15px] text-muted [overflow-wrap:anywhere]">
+              {plan.place}
+              {plan.neighborhood ? ` · ${plan.neighborhood}` : ""}
+            </span>
+          ) : null}
         </div>
         <span className="mono shrink-0 pt-0.5 text-muted-2">{whoLine(plan)}</span>
       </div>

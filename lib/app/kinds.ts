@@ -11,6 +11,9 @@ export const KINDS = [
   { id: "bar", label: "game at the bar" },
   { id: "drinks", label: "drinks" },
   { id: "networking", label: "networking" },
+  { id: "study", label: "study session" },
+  { id: "sport", label: "sport" },
+  { id: "class", label: "class" },
   { id: "other", label: "something else" },
 ] as const;
 

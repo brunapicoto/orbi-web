@@ -16,6 +16,31 @@ export type PlanView = {
   isHost: boolean;
   joined: boolean;
   status: PlanStatus;
+  /** set for plans made from a link, or given a title */
+  title: string | null;
+  /** the public link is /p/<shareSlug> */
+  shareSlug: string | null;
+  sourceUrl: string | null;
+  sourceAuthor: string | null;
+  thumbnailUrl: string | null;
+  lat: number | null;
+  lng: number | null;
+  neighborhood: string | null;
+  /** 0 free, 1 $, 2 $$, 3 $$$ */
+  priceLevel: number | null;
+  costNote: string | null;
+  /** everyone counted, host included; 3 or more */
+  minPeople: number;
+  showHost: boolean;
+};
+
+/** What anyone with the public link sees. Never who is in; the host only if they chose to show it. */
+export type PlanTeaser = {
+  title: string | null; kind: string; topic: string | null; place: string; neighborhood: string | null; note: string | null;
+  startsAt: string; lat: number | null; lng: number | null; thumbnailUrl: string | null; sourceAuthor: string | null;
+  priceLevel: number | null; costNote: string | null;
+  going: number; minPeople: number; maxPeople: number; status: PlanStatus;
+  hostName: string | null; isHost: boolean; joined: boolean; connected: boolean;
 };
 
 export type Person = { id: string; firstName: string; isHost: boolean; isMe: boolean };
@@ -48,7 +73,12 @@ export type MemoryInvite = { id: string; kind: string; place: string; happenedOn
 
 export type NewMemory = { kind: string; place: string; happenedOn: string; note: string; tagged: string[] };
 
-export type NewPlan = { kind: string; place: string; note: string; startsAt: string; openSpots: number; bringing: number; topic?: string | null };
+export type NewPlan = {
+  kind: string; place: string; note: string; startsAt: string; openSpots: number; bringing: number; topic?: string | null;
+  title?: string | null; sourceUrl?: string | null; sourceAuthor?: string | null; thumbnailUrl?: string | null;
+  lat?: number | null; lng?: number | null; neighborhood?: string | null; priceLevel?: number | null; costNote?: string | null;
+  minPeople?: number; showHost?: boolean;
+};
 
 /** After a plan: who you picked to keep in your orbit, and who you're already connected to. */
 export type OrbitState = { picked: string[]; connected: string[] };

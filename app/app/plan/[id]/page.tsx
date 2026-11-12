@@ -9,6 +9,9 @@ import { OrbitPicks } from "@/components/app/OrbitPicks";
 import { PhotoUpload } from "@/components/app/PhotoUpload";
 import { SpotDots, TrustDot, planLine, whoLine } from "@/components/app/PlanCard";
 import { trustLines } from "@/lib/app/trust";
+import { ShareLink } from "@/components/app/ShareLink";
+import { MiniMap } from "@/components/app/map";
+import { priceLabel } from "@/lib/app/planText";
 import { formatWhen, planLabel, planNoun } from "@/lib/app/kinds";
 import { requireMe } from "@/lib/app/session";
 
@@ -52,13 +55,30 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
             <KindIcon kind={plan.kind} className="h-4 w-4" />
             {planLabel(plan)}
           </span>
-          <h1 className="display text-[2.75rem] leading-[0.95]">{plan.place}</h1>
-          <p className="mono text-muted">{formatWhen(plan.startsAt)}</p>
+          <h1 className="display text-[2.75rem] leading-[0.95]">{plan.title || plan.place}</h1>
+          {plan.title || plan.neighborhood ? (
+            <p className="text-muted">
+              {plan.title ? plan.place : ""}
+              {plan.neighborhood ? <span className="text-muted-2">{plan.title ? " · " : ""}{plan.neighborhood}</span> : null}
+            </p>
+          ) : null}
+          <p className="mono text-muted">
+            {formatWhen(plan.startsAt)}
+            {priceLabel(plan.priceLevel) ? ` · ${priceLabel(plan.priceLevel)}` : ""}
+          </p>
+          {plan.costNote ? <p className="text-[15px] text-muted-2">{plan.costNote}</p> : null}
+          {plan.sourceUrl ? (
+            <a href={plan.sourceUrl} target="_blank" rel="noopener noreferrer" className="mono link-draw self-start text-[12px] text-lavender-soft">
+              the video{plan.sourceAuthor ? ` · ${plan.sourceAuthor}` : ""} ↗
+            </a>
+          ) : null}
         </div>
         <div className="w-20 shrink-0">
           <OrbitDial phase={phase} interactive={false} />
         </div>
       </header>
+
+      {plan.lat !== null && plan.lng !== null ? <MiniMap lat={plan.lat} lng={plan.lng} kind={plan.kind} label={plan.place} /> : null}
 
       {plan.note ? <p className="display text-[1.5rem] leading-snug text-bone">&ldquo;{plan.note}&rdquo;</p> : null}
 
@@ -72,7 +92,7 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
             ? `${people_n} people. ${plan.status === "live" ? "the list is open." : "it happened."}`
             : plan.status === "on"
               ? `it's on: ${people_n} people so far, ${planLine(plan)}.${brings} names stay sealed until it starts.`
-              : `${people_n} of 3 needed so far, ${planLine(plan)}.${brings} if it doesn't reach 3, it quietly doesn't happen.`}
+              : `${people_n} of ${plan.minPeople} needed so far.${brings} if it doesn't reach ${plan.minPeople}, it quietly doesn't happen.`}
         </p>
         {trust ? (
           <div className="flex flex-col gap-1.5 border-t border-dashed border-line pt-4">
@@ -90,6 +110,8 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
       </section>
 
       {!started && !plan.isHost ? <JoinButton planId={plan.id} joined={plan.joined} full={full && !plan.joined} /> : null}
+
+      {!started && plan.isHost && plan.shareSlug ? <ShareLink slug={plan.shareSlug} isHost /> : null}
 
       {!started && plan.isHost ? (
         <form action={cancelPlan.bind(null, plan.id)}>
