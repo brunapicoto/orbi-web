@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { draftFromLink, type DraftState } from "@/app/app/actions";
 import { NewPlanForm } from "@/components/app/NewPlanForm";
 import { categoryOf } from "@/lib/app/categories";
@@ -10,7 +10,7 @@ const field =
   "w-full rounded-2xl border border-line bg-ink-2 px-4 py-3.5 text-[17px] text-bone placeholder:text-muted-2 outline-none focus-visible:border-lavender focus-visible:ring-2 focus-visible:ring-lavender";
 
 /** Step 1: paste a link. Step 2: check the draft and post it. */
-export function LinkPlanFlow({ initialUrl = "" }: { initialUrl?: string }) {
+export function LinkPlanFlow({ initialUrl = "", onDraft }: { initialUrl?: string; onDraft?: (has: boolean) => void }) {
   const [state, action, pending] = useActionState<DraftState, FormData>(draftFromLink, {});
   const [url, setUrl] = useState(initialUrl);
   const [caption, setCaption] = useState("");
@@ -34,6 +34,10 @@ export function LinkPlanFlow({ initialUrl = "" }: { initialUrl?: string }) {
   };
   const isInstagram = /instagram\.com/i.test(url);
   const showCaption = isInstagram || state.needsCaption;
+  const hasDraft = !!(state.draft && state.source && !again);
+  useEffect(() => {
+    onDraft?.(hasDraft);
+  }, [hasDraft, onDraft]);
 
   if (state.draft && state.source && !again) {
     const d = state.draft;
