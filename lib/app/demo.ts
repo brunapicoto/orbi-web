@@ -42,7 +42,8 @@ function seed(): DemoState {
     picks: { "p-past:eva": [ME] },
     // lena added a memory with you; accept it to see it (shows the consent flow)
     memories: [
-      { id: "m-lena", createdBy: "lena", kind: "brunch", place: "Sunday in Brooklyn", happenedOn: new Date(Date.now() - 12 * 86400_000).toISOString().slice(0, 10), note: "the pancakes were worth the line.", tagged: [ME, "naomi"], accepted: ["naomi"], pending: [ME], photos: [] },
+      { id: "m-theo", createdBy: "theo", kind: "gallery", place: "Dia Beacon", happenedOn: new Date(Date.now() - 20 * 86400_000).toISOString().slice(0, 10), note: "a whole day, one train ride.", tagged: ["sofia"], accepted: ["sofia"], pending: [], photos: [{ id: "mp-t1", url: "/demo/gallery.jpg" }, { id: "mp-t2", url: "/demo/run.jpg" }] },
+      { id: "m-lena", createdBy: "lena", kind: "brunch", place: "Sunday in Brooklyn", happenedOn: new Date(Date.now() - 12 * 86400_000).toISOString().slice(0, 10), note: "the pancakes were worth the line.", tagged: [ME, "naomi"], accepted: ["naomi"], pending: [ME], photos: [{ id: "mp-l1", url: "/demo/comedy.jpg" }] },
     ],
     prefs: { kinds: ["run", "gallery", "sauna"], times: ["weekend-morning", "weekend-afternoon"], areas: ["brooklyn"], topics: ["finance"], groupSize: "small" },
     plans: [
@@ -131,9 +132,16 @@ function memView(m: DemoState["memories"][number], invitedBy: string | null) {
   const names = [m.createdBy, ...m.accepted].filter((u) => u !== ME).map((u) => nameOf(u)).sort();
   return {
     id: m.id, kind: m.kind, place: m.place, happenedOn: m.happenedOn, note: m.note || null, isMine: m.createdBy === ME,
-    withNames: names, waiting: m.createdBy === ME ? m.pending.length : 0, invitedBy,
+    withNames: names, waiting: m.createdBy === ME ? m.pending.length : 0, invitedBy, inIt: inMemory(m),
   };
 }
+
+type DemoMemory = DemoState["memories"][number];
+/** made it, or accepted the tag */
+const inMemory = (m: DemoMemory) => m.createdBy === ME || m.accepted.includes(ME);
+/** same as can_view_memory(): the people in it, the creator's network, the networks of everyone who accepted */
+const canView = (m: DemoMemory) =>
+  inMemory(m) || connected(m.createdBy, ME) || m.accepted.some((u) => connected(u, ME));
 
 // same bands as mutual_band() in supabase/app.sql
 function band(n: number) {
@@ -181,7 +189,7 @@ export async function demoStore(): Promise<Store> {
     },
     async memories() {
       return s.memories
-        .filter((m) => m.createdBy === ME || m.accepted.includes(ME))
+        .filter((m) => canView(m) && !m.pending.includes(ME))
         .map((m) => memView(m, null))
         .sort((a, b) => b.happenedOn.localeCompare(a.happenedOn));
     },
@@ -193,9 +201,8 @@ export async function demoStore(): Promise<Store> {
     async memory(id) {
       const m = s.memories.find((x) => x.id === id);
       if (!m) return null;
-      if (m.createdBy === ME || m.accepted.includes(ME)) return memView(m, null);
-      if (m.pending.includes(ME)) return { ...memView(m, nameOf(m.createdBy)), withNames: [], note: null };
-      return null;
+      if (m.pending.includes(ME)) return { ...memView(m, nameOf(m.createdBy)), withNames: [], note: null, inIt: false };
+      return canView(m) ? memView(m, null) : null;
     },
     async addMemory(input) {
       if (input.happenedOn > new Date().toISOString().slice(0, 10)) throw new Error("a memory is something that already happened");
@@ -212,13 +219,20 @@ export async function demoStore(): Promise<Store> {
     },
     async memoryPhotos(id) {
       const m = s.memories.find((x) => x.id === id);
-      return m && (m.createdBy === ME || m.accepted.includes(ME)) ? m.photos : [];
+      return m && canView(m) && !m.pending.includes(ME) ? m.photos : [];
     },
     async uploadMemoryPhoto(id, file) {
       const m = s.memories.find((x) => x.id === id);
       if (!m || !(m.createdBy === ME || m.accepted.includes(ME))) throw new Error("not found");
       const buf = Buffer.from(await file.arrayBuffer());
       m.photos.push({ id: `mp-${m.photos.length + 1}`, url: `data:${file.type};base64,${buf.toString("base64")}` });
+    },
+    async replaceMemoryPhoto(memoryId, photoId, file) {
+      const m = s.memories.find((x) => x.id === memoryId);
+      const ph = m?.photos.find((p) => p.id === photoId);
+      if (!m || !ph || !inMemory(m)) throw new Error("not found");
+      const buf = Buffer.from(await file.arrayBuffer());
+      ph.url = `data:image/jpeg;base64,${buf.toString("base64")}`;
     },
     async prefs() {
       return s.prefs;

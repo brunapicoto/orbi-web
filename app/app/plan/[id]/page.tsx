@@ -158,7 +158,7 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
                 <li key={p.id} className={photos.length === 1 ? "col-span-2" : ""}>
                   {/* signed, short-lived urls: next/image can't cache them */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.url} alt={`group photo from ${plan.place}`} className="aspect-[4/3] w-full rounded-2xl object-cover grayscale-[15%]" />
+                  <img src={p.url} alt={`group photo from ${plan.place}`} className="aspect-square w-full rounded-2xl object-cover grayscale-[15%]" />
                 </li>
               ))}
             </ul>

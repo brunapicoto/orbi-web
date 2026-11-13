@@ -451,7 +451,8 @@ create table if not exists public.memory_photos (
   created_at timestamptz not null default now()
 );
 
--- creator, or someone who accepted
+-- who is IN a memory (can add photos, or blur themselves in one): the creator, or someone who accepted.
+-- (the name is older than the split; can_view_memory says who can see it)
 create or replace function public.can_see_memory(m uuid, u uuid)
 returns boolean
 language sql stable security definer set search_path = public
@@ -460,18 +461,54 @@ as $$
       or exists (select 1 from memory_people where memory_id = m and user_id = u and status = 'accepted');
 $$;
 
+-- who can SEE a memory: the people in it, the creator's network, and the network of everyone who
+-- accepted their tag. a pending or declined tag doesn't open anyone's network. seeing is just seeing.
+create or replace function public.can_view_memory(m uuid, u uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select u is not null and (
+    can_see_memory(m, u)
+    or exists (select 1 from memories where id = m and are_connected(created_by, u))
+    or exists (select 1 from memory_people mp where mp.memory_id = m and mp.status = 'accepted' and are_connected(mp.user_id, u))
+  );
+$$;
+
 alter table public.memories enable row level security;
 alter table public.memory_people enable row level security;
 alter table public.memory_photos enable row level security;
 -- everything goes through the functions below, except reading photo records
 drop policy if exists memory_photos_select on public.memory_photos;
 create policy memory_photos_select on public.memory_photos for select to authenticated
-  using (public.can_see_memory(memory_id, auth.uid()));
+  using (public.can_view_memory(memory_id, auth.uid()));
 drop policy if exists memory_photos_insert on public.memory_photos;
 create policy memory_photos_insert on public.memory_photos for insert to authenticated
   with check (uploaded_by = auth.uid() and public.can_see_memory(memory_id, auth.uid()));
 revoke all on public.memories, public.memory_people, public.memory_photos from anon;
 grant select, insert on public.memory_photos to authenticated;
+
+-- "accept and blur me": anyone in the memory can swap a photo for a copy they blurred.
+-- the new file must already be uploaded to this memory's folder; the old file stops being readable
+-- (storage only serves files a photo record points to, see "memory photos read").
+alter table public.memory_photos add column if not exists edited_by uuid references public.profiles (id) on delete set null;
+create or replace function public.replace_memory_photo(photo uuid, new_path text)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  me uuid := auth.uid();
+  ph memory_photos%rowtype;
+begin
+  if me is null then raise exception 'not signed in'; end if;
+  select * into ph from memory_photos where id = photo for update;
+  if not found or not can_see_memory(ph.memory_id, me) then raise exception 'photo not found'; end if;
+  if split_part(new_path, '/', 1) <> ph.memory_id::text or new_path !~ '^[0-9a-f-]+/[A-Za-z0-9._-]+$' then raise exception 'photo not found'; end if;
+  if not exists (select 1 from storage.objects where bucket_id = 'memory-photos' and name = new_path) then raise exception 'photo not found'; end if;
+  update memory_photos set path = new_path, edited_by = me where id = photo;
+end;
+$$;
+revoke all on function public.replace_memory_photo(uuid, text) from public, anon;
+grant execute on function public.replace_memory_photo(uuid, text) to authenticated;
 
 create or replace function public.add_memory(k text, place text, happened date, note text, tagged uuid[])
 returns uuid
@@ -509,9 +546,15 @@ begin
 end;
 $$;
 
--- memories you can see, with only the names of people who accepted
-create or replace function public.my_memories()
-returns table (id uuid, kind text, place text, happened_on date, note text, is_mine boolean, with_names text[], waiting int)
+-- memories you can see: yours, ones you accepted, and ones from your network (view only).
+-- names are only of people who accepted. a memory waiting for your answer shows up as an invite instead.
+drop function if exists public.memory_detail(uuid);
+drop function if exists public.my_memories();
+create function public.my_memories()
+returns table (
+  id uuid, kind text, place text, happened_on date, note text, is_mine boolean, with_names text[], waiting int,
+  in_it boolean
+)
 language sql stable security definer set search_path = public
 as $$
   select m.id, m.kind, m.place, m.happened_on, m.note, m.created_by = auth.uid(),
@@ -523,9 +566,11 @@ as $$
          ),
          case when m.created_by = auth.uid()
               then (select count(*)::int from memory_people where memory_id = m.id and status = 'pending')
-              else 0 end
+              else 0 end,
+         can_see_memory(m.id, auth.uid())
   from memories m
-  where can_see_memory(m.id, auth.uid())
+  where can_view_memory(m.id, auth.uid())
+    and not exists (select 1 from memory_people mp where mp.memory_id = m.id and mp.user_id = auth.uid() and mp.status = 'pending')
   order by m.happened_on desc;
 $$;
 
@@ -542,17 +587,23 @@ as $$
   order by m.created_at desc;
 $$;
 
--- one memory, for its page: visible if you can see it, or if you were tagged and haven't answered
-create or replace function public.memory_detail(m uuid)
-returns table (id uuid, kind text, place text, happened_on date, note text, is_mine boolean, with_names text[], waiting int, invited_by text)
+-- one memory, for its page: as an invite if you were tagged and haven't answered, otherwise if you can see it
+create function public.memory_detail(m uuid)
+returns table (
+  id uuid, kind text, place text, happened_on date, note text, is_mine boolean, with_names text[], waiting int, invited_by text,
+  in_it boolean
+)
 language sql stable security definer set search_path = public
 as $$
-  select mm.id, mm.kind, mm.place, mm.happened_on, mm.note, mm.is_mine, mm.with_names, mm.waiting, null::text
-  from my_memories() mm where mm.id = m
+  select i.id, i.kind, i.place, i.happened_on, null, false, '{}'::text[], 0, i.from_name, false
+  from memory_invites() i where i.id = m
   union all
-  select i.id, i.kind, i.place, i.happened_on, null, false, '{}'::text[], 0, i.from_name
-  from memory_invites() i where i.id = m;
+  select mm.id, mm.kind, mm.place, mm.happened_on, mm.note, mm.is_mine, mm.with_names, mm.waiting, null::text, mm.in_it
+  from my_memories() mm where mm.id = m;
 $$;
+
+revoke all on function public.can_view_memory(uuid, uuid) from public, anon;
+grant execute on function public.can_view_memory(uuid, uuid) to authenticated;
 
 revoke all on function public.can_see_memory(uuid, uuid), public.add_memory(text, text, date, text, uuid[]),
   public.answer_memory(uuid, boolean), public.my_memories(), public.memory_invites(), public.memory_detail(uuid) from public, anon;
@@ -753,7 +804,12 @@ on conflict (id) do nothing;
 
 drop policy if exists "memory photos read" on storage.objects;
 create policy "memory photos read" on storage.objects for select to authenticated
-  using (bucket_id = 'memory-photos' and public.can_see_memory(((storage.foldername(name))[1])::uuid, auth.uid()));
+  using (
+    bucket_id = 'memory-photos'
+    and public.can_view_memory(((storage.foldername(name))[1])::uuid, auth.uid())
+    -- a file in use, or your own upload on its way in. a photo swapped for a blurred copy is neither.
+    and (exists (select 1 from public.memory_photos mp where mp.path = name) or owner = auth.uid())
+  );
 
 drop policy if exists "memory photos upload" on storage.objects;
 create policy "memory photos upload" on storage.objects for insert to authenticated

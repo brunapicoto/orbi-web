@@ -217,19 +217,47 @@ insert into memory_photos (memory_id, path) values (current_setting('t.mem')::uu
 insert into storage.objects (bucket_id, name) values ('memory-photos', current_setting('t.mem') || '/a.jpg');
 select pg_temp.check((select count(*) from storage.objects where bucket_id = 'memory-photos') = 1, 'Bia can add a photo to it');
 
+-- "accept and blur me": Ana swaps Bia's photo for a blurred copy
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check((select count(*) from storage.objects where bucket_id = 'memory-photos') = 1, 'Ana sees the photo');
+insert into storage.objects (bucket_id, name) values ('memory-photos', current_setting('t.mem') || '/a-blur.jpg');
+select replace_memory_photo((select id from memory_photos where path = current_setting('t.mem') || '/a.jpg'), current_setting('t.mem') || '/a-blur.jpg');
+select pg_temp.check((select path from memory_photos) = current_setting('t.mem') || '/a-blur.jpg', 'the memory now shows the blurred copy');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check((select array_agg(name) from storage.objects where bucket_id = 'memory-photos') = array[current_setting('t.mem') || '/a.jpg', current_setting('t.mem') || '/a-blur.jpg'], 'Bia, who took it, still has her original');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check((select array_agg(name) from storage.objects where bucket_id = 'memory-photos') = array[current_setting('t.mem') || '/a-blur.jpg'], 'everyone else only gets the blurred copy');
+select pg_temp.expect_fail($$select replace_memory_photo((select id from memory_photos limit 1), 'someone-else/x.jpg')$$, 'a photo can only be swapped within its memory');
+select pg_temp.expect_fail($$select replace_memory_photo((select id from memory_photos limit 1), current_setting('t.mem') || '/never-uploaded.jpg')$$, 'and only for a file that was uploaded');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000d');
 select answer_memory(current_setting('t.mem')::uuid, false);
 select pg_temp.check((select count(*) from memory_invites()) = 0, 'Duda declines: the invite is gone');
-select pg_temp.check((select count(*) from my_memories()) = 0, 'and she never sees the memory');
-select pg_temp.check((select count(*) from storage.objects where bucket_id = 'memory-photos') = 0, 'or its photo');
+select pg_temp.check((select count(*) from my_memories()) = 1, 'she is in Ana''s network, so she still sees it, untagged');
+select pg_temp.check(not (select with_names from my_memories()) @> '{Duda}' and (select with_names from my_memories()) = '{Ana,Bia}', 'without her name on it');
+select pg_temp.check((select in_it from my_memories()) = false, 'and she is not in it: she declined');
+select pg_temp.check((select count(*) from storage.objects where bucket_id = 'memory-photos') = 1, 'she sees the photo (the blurred copy)');
 
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
 select pg_temp.check((select waiting from my_memories()) = 0, 'Ana sees nobody waiting, and no "no"');
 select pg_temp.check((select with_names from my_memories()) = '{Bia}', 'and Bia with her');
 
+-- seeing: the creator's network
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c');
+select pg_temp.check((select count(*) from my_memories() where id = current_setting('t.mem')::uuid) = 1, 'Caio (Ana''s network, never tagged) sees the memory');
+select pg_temp.check((select in_it from my_memories() where id = current_setting('t.mem')::uuid) = false, 'he is not in it');
+select pg_temp.expect_fail($$insert into storage.objects (bucket_id, name) values ('memory-photos', current_setting('t.mem') || '/c.jpg')$$, 'so he cannot add photos');
+select pg_temp.expect_fail($$select replace_memory_photo((select id from memory_photos limit 1), current_setting('t.mem') || '/a-blur.jpg')$$, 'or change one');
+
+-- a tagged person's network: Eva is connected to Bia, who accepted
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000e');
-select pg_temp.check((select count(*) from my_memories()) + (select count(*) from memory_invites()) = 0, 'Eva, never tagged, sees nothing');
+select pg_temp.check((select count(*) from my_memories() where id = current_setting('t.mem')::uuid) = 1, 'Eva (Bia''s network) sees it');
+select pg_temp.check((select in_it from my_memories() where id = current_setting('t.mem')::uuid) = false, 'without being in it');
 select pg_temp.expect_fail($$insert into storage.objects (bucket_id, name) values ('memory-photos', current_setting('t.mem') || '/x.jpg')$$, 'and cannot add photos');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000011');
+select pg_temp.check((select count(*) from my_memories()) = 0, 'someone outside every network sees nothing');
+select pg_temp.expect_fail($$select replace_memory_photo((select id from memory_photos limit 1), current_setting('t.mem') || '/a-blur.jpg')$$, 'or swap them');
 reset role;
 
 -- ---------------------------------------------------------------- preferences are private

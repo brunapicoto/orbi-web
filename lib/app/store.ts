@@ -23,6 +23,8 @@ export interface Store {
   answerMemory(id: string, accept: boolean): Promise<void>;
   memoryPhotos(id: string): Promise<Photo[]>;
   uploadMemoryPhoto(id: string, file: File): Promise<void>;
+  /** swap a photo for a copy where you blurred yourself (people in the memory only) */
+  replaceMemoryPhoto(memoryId: string, photoId: string, file: File): Promise<void>;
   savePrefs(p: Prefs): Promise<void>;
   keepInOrbit(id: string, target: string): Promise<"picked" | "connected">;
   dropPick(id: string, target: string): Promise<void>;
@@ -63,11 +65,11 @@ export function friendly(err: unknown): string {
 
 type MemRow = {
   id: string; kind: string; place: string; happened_on: string; note: string | null;
-  is_mine: boolean; with_names: string[] | null; waiting: number; invited_by?: string | null;
+  is_mine: boolean; with_names: string[] | null; waiting: number; invited_by?: string | null; in_it?: boolean | null;
 };
 const toMemory = (r: MemRow): MemoryView => ({
   id: r.id, kind: r.kind, place: r.place, happenedOn: r.happened_on, note: r.note, isMine: r.is_mine,
-  withNames: r.with_names ?? [], waiting: r.waiting ?? 0, invitedBy: r.invited_by ?? null,
+  withNames: r.with_names ?? [], waiting: r.waiting ?? 0, invitedBy: r.invited_by ?? null, inIt: r.in_it ?? false,
 });
 
 type TeaserRow = {
@@ -181,6 +183,13 @@ async function supabaseStore(): Promise<Store> {
       const { error } = await sb.storage.from("memory-photos").upload(path, file, { contentType: file.type });
       if (error) throw error;
       const { error: e2 } = await sb.from("memory_photos").insert({ memory_id: id, path });
+      if (e2) throw e2;
+    },
+    async replaceMemoryPhoto(memoryId, photoId, file) {
+      const path = `${memoryId}/${crypto.randomUUID()}.jpg`;
+      const { error } = await sb.storage.from("memory-photos").upload(path, file, { contentType: "image/jpeg" });
+      if (error) throw error;
+      const { error: e2 } = await sb.rpc("replace_memory_photo", { photo: photoId, new_path: path });
       if (e2) throw e2;
     },
     async prefs() {

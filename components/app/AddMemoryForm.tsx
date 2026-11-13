@@ -1,7 +1,8 @@
 "use client";
 
-import { startTransition, useActionState, useRef, useState } from "react";
-import { addMemory, type FormState } from "@/app/app/actions";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { addMemory, uploadMemoryPhoto, type FormState } from "@/app/app/actions";
 import { KindIcon } from "@/components/app/KindIcon";
 import { shrink } from "@/components/app/PhotoUpload";
 import { KINDS } from "@/lib/app/kinds";
@@ -17,52 +18,90 @@ const today = () => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
+const MAX_PHOTOS = 10;
+
 export function AddMemoryForm({ mutuals }: { mutuals: { id: string; firstName: string }[] }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(addMemory, {});
-  const [preview, setPreview] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+  const [state, setState] = useState<FormState>({});
+  const [pending, setPending] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [photos, setPhotos] = useState<{ file: File; url: string }[]>([]);
   const fe = state.fieldErrors ?? {};
 
-  // shrink the photo on the phone before it is sent
+  const addFiles = (list: FileList | null) => {
+    if (!list) return;
+    const picked = Array.from(list).filter((f) => f.type.startsWith("image/"));
+    setPhotos((cur) => [...cur, ...picked.map((file) => ({ file, url: URL.createObjectURL(file) }))].slice(0, MAX_PHOTOS));
+  };
+  const remove = (i: number) => setPhotos((cur) => cur.filter((_, j) => j !== i));
+
+  // photos are shrunk on the phone, then sent one at a time (each request stays small)
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const file = fileRef.current?.files?.[0];
-    if (file) {
-      setBusy(true);
-      fd.set("photo", await shrink(file));
-      setBusy(false);
-    } else {
+    setPending(true);
+    setState({});
+    try {
       fd.delete("photo");
+      if (photos.length) {
+        setProgress(`photo 1 of ${photos.length}`);
+        fd.set("photo", await shrink(photos[0].file));
+      }
+      fd.set("stay", "1");
+      const res = await addMemory({}, fd);
+      if (!res.id) {
+        setState(res);
+        return;
+      }
+      for (let i = 1; i < photos.length; i++) {
+        setProgress(`photo ${i + 1} of ${photos.length}`);
+        const one = new FormData();
+        one.set("planId", res.id);
+        one.set("photo", await shrink(photos[i].file));
+        await uploadMemoryPhoto({}, one);
+      }
+      router.push(`/app/memories/${res.id}?added=1`);
+    } catch {
+      setState({ error: "something went wrong. please try again." });
+    } finally {
+      setPending(false);
+      setProgress("");
     }
-    startTransition(() => action(fd));
   };
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-8" noValidate>
       <div className="flex flex-col gap-3">
-        <span className="mono text-muted-2">the photo (optional)</span>
-        <label className="relative flex aspect-[4/3] cursor-pointer items-center justify-center overflow-hidden rounded-3xl border border-dashed border-lavender/60 bg-ink-2 text-lavender focus-within:ring-2 focus-within:ring-lavender">
-          <input
-            ref={fileRef}
-            type="file"
-            name="photo"
-            accept="image/*"
-            className="sr-only"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              setPreview(f ? URL.createObjectURL(f) : null);
-            }}
-          />
-          {preview ? (
-            // a local preview of the chosen file
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="the photo you chose" className="absolute inset-0 h-full w-full object-cover" />
-          ) : (
-            <span className="mono">choose a photo</span>
-          )}
-        </label>
+        <span className="mono text-muted-2" id="am-photos">the photos (optional)</span>
+        {photos.length ? (
+          <ul aria-labelledby="am-photos" className="-mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+            {photos.map((p, i) => (
+              <li key={p.url} className="relative aspect-square w-[72%] shrink-0 snap-start overflow-hidden rounded-3xl bg-ink-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.url} alt={`photo ${i + 1} you chose`} className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  aria-label={`remove photo ${i + 1}`}
+                  className="absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-full bg-ink/80 text-[20px] text-bone hover:bg-lavender hover:text-ink"
+                >
+                  ×
+                </button>
+                <span className="mono absolute bottom-2 left-3 rounded-full bg-ink/80 px-2.5 py-1 text-[11px] text-lavender-soft">{i + 1}/{photos.length}</span>
+              </li>
+            ))}
+            {photos.length < MAX_PHOTOS ? (
+              <li className="aspect-square w-[40%] shrink-0 snap-start">
+                <AddTile onFiles={addFiles} label="add more" />
+              </li>
+            ) : null}
+          </ul>
+        ) : (
+          <div className="aspect-square">
+            <AddTile onFiles={addFiles} label="choose photos" />
+          </div>
+        )}
+        <p className="text-[15px] text-muted-2">up to {MAX_PHOTOS}. swipe to see them all.</p>
         {fe.photo ? <p className="mono text-lavender">{fe.photo}</p> : null}
       </div>
 
@@ -120,9 +159,28 @@ export function AddMemoryForm({ mutuals }: { mutuals: { id: string; firstName: s
 
       {state.error ? <p role="alert" className="mono text-lavender">{state.error}</p> : null}
 
-      <button type="submit" disabled={pending || busy} className="mono min-h-14 rounded-full bg-bordeaux px-8 text-[15px] text-bone hover:bg-lavender hover:text-ink disabled:opacity-60">
-        {pending || busy ? "saving…" : "add the memory"}
+      <button type="submit" disabled={pending} className="mono min-h-14 rounded-full bg-bordeaux px-8 text-[15px] text-bone hover:bg-lavender hover:text-ink disabled:opacity-60">
+        {pending ? (progress ? `saving · ${progress}` : "saving…") : "add the memory"}
       </button>
     </form>
+  );
+}
+
+function AddTile({ onFiles, label }: { onFiles: (f: FileList | null) => void; label: string }) {
+  return (
+    <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-3xl border border-dashed border-lavender/60 bg-ink-2 text-lavender focus-within:ring-2 focus-within:ring-lavender">
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        className="sr-only"
+        onChange={(e) => {
+          onFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <span aria-hidden="true" className="text-[28px] leading-none">+</span>
+      <span className="mono text-[13px]">{label}</span>
+    </label>
   );
 }

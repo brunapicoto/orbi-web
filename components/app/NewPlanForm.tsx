@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createPlan, findPlace, type FormState } from "@/app/app/actions";
 import { KindIcon } from "@/components/app/KindIcon";
 import { PinPicker } from "@/components/app/map";
@@ -48,6 +48,28 @@ export function NewPlanForm({ initialKind = "", initialPlace = "", draft, source
       else setSearchMsg("couldn't find that. tap the map to drop the pin.");
     });
   const [minPeople, setMinPeople] = useState(3);
+
+  // as you type the place, try to pin it: waits for a pause in typing (the geocoder allows ~1 lookup a second)
+  const lastQuery = useRef(draft?.lat != null ? [draft.place, draft.neighborhood, "new york"].filter(Boolean).join(", ") : "");
+  const [autoMsg, setAutoMsg] = useState("");
+  useEffect(() => {
+    const q = [place.trim(), neighborhood.trim(), "new york"].filter(Boolean).join(", ");
+    if (place.trim().length < 3 || q === lastQuery.current) return;
+    const t = setTimeout(async () => {
+      lastQuery.current = q;
+      setAutoMsg("looking for it on the map…");
+      const hit = await findPlace(q);
+      if (lastQuery.current !== q) return; // you kept typing
+      if (hit) {
+        setPin({ lat: hit.lat, lng: hit.lng });
+        setMapOpen(true);
+        setAutoMsg(`pinned: ${hit.label}. drag it if it's not quite right.`);
+      } else {
+        setAutoMsg("couldn't find that yet. keep typing, or tap the map to drop the pin.");
+      }
+    }, 900);
+    return () => clearTimeout(t);
+  }, [place, neighborhood]);
   const [note, setNote] = useState("");
   const [topic, setTopic] = useState("");
   // total group (you included) and spots opened to mutuals; the rest are friends you bring
@@ -171,13 +193,16 @@ export function NewPlanForm({ initialKind = "", initialPlace = "", draft, source
             </div>
             <PinPicker lat={pin.lat} lng={pin.lng} onChange={(lat, lng) => setPin({ lat, lng })} />
             <p className="text-[15px] text-muted-2" aria-live="polite">
-              {searchMsg || (pin.lat !== null ? "drag the pin if it's not quite right." : "tap the map to drop a pin. only your mutuals see it.")}
+              {searchMsg || autoMsg || (pin.lat !== null ? "drag the pin if it's not quite right." : "tap the map to drop a pin. only your mutuals see it.")}
             </p>
           </div>
         ) : (
-          <button type="button" onClick={() => setMapOpen(true)} className="mono link-draw mt-1 self-start text-lavender">
-            + put it on the map
-          </button>
+          <>
+            <button type="button" onClick={() => setMapOpen(true)} className="mono link-draw mt-1 self-start text-lavender">
+              + put it on the map
+            </button>
+            {autoMsg ? <p className="text-[15px] text-muted-2" aria-live="polite">{autoMsg}</p> : null}
+          </>
         )}
       </div>
 

@@ -7,7 +7,7 @@ import { KIND_IDS, TOPIC_IDS } from "@/lib/app/kinds";
 import { friendly, getStore } from "@/lib/app/store";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
 
-export type FormState = { error?: string; fieldErrors?: Record<string, string>; ok?: boolean; sentTo?: string };
+export type FormState = { error?: string; fieldErrors?: Record<string, string>; ok?: boolean; sentTo?: string; id?: string };
 
 const cleanName = (v: FormDataEntryValue | null) => String(v ?? "").trim().replace(/\s+/g, " ");
 
@@ -307,15 +307,36 @@ export async function addMemory(_prev: FormState, fd: FormData): Promise<FormSta
     return { error: friendly(e) };
   }
   revalidatePath("/app/memories");
+  // more photos to send: the page uploads them one by one, then opens the memory
+  if (fd.get("stay") === "1") return { ok: true, id };
   redirect(`/app/memories/${id}?added=1`);
 }
 
-export async function answerMemory(id: string, accept: boolean) {
+/** decline, accept, or accept and blur yourself in the photos */
+export async function answerMemory(id: string, accept: boolean, blur = false) {
   const store = await getStore();
   await store.answerMemory(id, accept);
   revalidatePath("/app/memories");
   revalidatePath("/app/pings");
-  redirect(accept ? `/app/memories/${id}` : "/app/memories");
+  redirect(accept ? `/app/memories/${id}${blur ? "?blur=1" : ""}` : "/app/memories");
+}
+
+/** a copy of a photo with you blurred, made on your phone, replaces the original */
+export async function replaceMemoryPhoto(fd: FormData): Promise<FormState> {
+  const memoryId = String(fd.get("memoryId") ?? "");
+  const photoId = String(fd.get("photoId") ?? "");
+  const file = fd.get("photo");
+  if (!(file instanceof File) || file.size === 0 || file.type !== "image/jpeg") return { error: "something went wrong. please try again." };
+  if (file.size > 4 * 1024 * 1024) return { error: "that photo is too big." };
+  const store = await getStore();
+  try {
+    await store.replaceMemoryPhoto(memoryId, photoId, file);
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath(`/app/memories/${memoryId}`);
+  revalidatePath("/app/memories");
+  return { ok: true };
 }
 
 export async function uploadMemoryPhoto(_prev: FormState, fd: FormData): Promise<FormState> {

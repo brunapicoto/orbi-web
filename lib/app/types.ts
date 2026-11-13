@@ -67,6 +67,8 @@ export type MemoryView = {
   waiting: number;
   /** set when you were tagged and haven't answered yet */
   invitedBy: string | null;
+  /** you made it or accepted your tag (can add photos, blur yourself). otherwise you see it through your network. */
+  inIt: boolean;
 };
 
 export type MemoryInvite = { id: string; kind: string; place: string; happenedOn: string; fromName: string };
