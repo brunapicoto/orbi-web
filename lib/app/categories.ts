@@ -3,10 +3,10 @@
 export const CATEGORIES = [
   { id: "dinner", label: "dinner", kinds: ["dinner", "brunch"], color: "#7A1428", ink: "#F4F1F1" },
   { id: "drinks", label: "drinks", kinds: ["drinks", "bar"], color: "#C9D2FA", ink: "#0E0C0D" },
-  { id: "sport", label: "sport", kinds: ["run", "workout", "sport", "sauna"], color: "#8FA3F5", ink: "#0E0C0D" },
+  { id: "sport", label: "sport", kinds: ["run", "workout", "sport", "sauna", "hike", "ski"], color: "#8FA3F5", ink: "#0E0C0D" },
   { id: "study", label: "study", kinds: ["study", "networking"], color: "#F4F1F1", ink: "#0E0C0D" },
-  { id: "culture", label: "culture", kinds: ["gallery", "show", "painting", "class"], color: "#B9B3B5", ink: "#0E0C0D" },
-  { id: "other", label: "other", kinds: ["other"], color: "#9C9597", ink: "#0E0C0D" },
+  { id: "culture", label: "culture", kinds: ["gallery", "show", "painting", "class", "concert"], color: "#B9B3B5", ink: "#0E0C0D" },
+  { id: "other", label: "other", kinds: ["other", "party", "travel", "beach"], color: "#9C9597", ink: "#0E0C0D" },
 ] as const;
 
 export type CategoryId = (typeof CATEGORIES)[number]["id"];
@@ -24,12 +24,12 @@ export function kindForCategory(category: string, hint = ""): string {
     case "drinks":
       return /arcade|darts|trivia|game|bowling|pool/.test(h) ? "bar" : "drinks";
     case "sport":
-      return /run|5k|10k|jog/.test(h) ? "run" : /yoga|pilates|class|spin|gym|barre/.test(h) ? "workout" : /sauna|spa|bathhouse/.test(h) ? "sauna" : "sport";
+      return /hike|hiking|trail/.test(h) ? "hike" : /ski|snowboard/.test(h) ? "ski" : /run|5k|10k|jog/.test(h) ? "run" : /yoga|pilates|class|spin|gym|barre/.test(h) ? "workout" : /sauna|spa|bathhouse/.test(h) ? "sauna" : "sport";
     case "study":
       return /network|career|coffee chat|industry/.test(h) ? "networking" : "study";
     case "culture":
-      return /museum|gallery|exhibit|met\b|moma/.test(h) ? "gallery" : /cook|class|workshop|pottery/.test(h) ? "class" : /paint/.test(h) ? "painting" : "show";
+      return /concert|gig|live music|festival/.test(h) ? "concert" : /museum|gallery|exhibit|met\b|moma/.test(h) ? "gallery" : /cook|class|workshop|pottery/.test(h) ? "class" : /paint/.test(h) ? "painting" : "show";
     default:
-      return "other";
+      return /party|birthday|rooftop/.test(h) ? "party" : /beach|rockaway|coney/.test(h) ? "beach" : /trip|weekend away|travel|getaway/.test(h) ? "travel" : "other";
   }
 }

@@ -1,6 +1,6 @@
 import "server-only";
 import type { Store } from "@/lib/app/store";
-import type { NewPlan, PlanStatus, PlanTeaser, PlanView } from "@/lib/app/types";
+import type { ExperienceSummary, NewPlan, PlanStatus, PlanTeaser, PlanView } from "@/lib/app/types";
 
 /**
  * Demo data, used only when Supabase keys are not set. Lives in server memory,
@@ -18,7 +18,7 @@ type DemoState = {
   /** keep-in-orbit picks, keyed "planId:picker" */
   picks: Record<string, string[]>;
   prefs: import("@/lib/app/types").Prefs | null;
-  memories: (import("@/lib/app/types").NewMemory & { id: string; createdBy: string; accepted: string[]; pending: string[]; photos: { id: string; url: string }[] })[];
+  memories: (import("@/lib/app/types").NewMemory & { id: string; createdBy: string; accepted: string[]; pending: string[]; photos: { id: string; url: string }[]; ratings?: Record<string, number> })[];
 };
 
 const ME = "me";
@@ -42,6 +42,11 @@ function seed(): DemoState {
     picks: { "p-past:eva": [ME] },
     // lena added a memory with you; accept it to see it (shows the consent flow)
     memories: [
+      { id: "m-vc1", createdBy: "lena", kind: "dinner", place: "Via Carota, West Village", happenedOn: new Date(Date.now() - 5 * 86400_000).toISOString().slice(0, 10), note: "birthday dinner. the cacio e pepe lived up to it.", tagged: ["naomi", "theo"], accepted: ["naomi", "theo"], pending: [], photos: [{ id: "mp-vc1", url: "/demo/comedy.jpg" }], ratings: { lena: 5, naomi: 5, theo: 4 } },
+      { id: "m-vc2", createdBy: "sofia", kind: "dinner", place: "via carota", happenedOn: new Date(Date.now() - 16 * 86400_000).toISOString().slice(0, 10), note: "", tagged: ["marcus", "iris", "lena"], accepted: ["marcus", "iris", "lena"], pending: [], photos: [], ratings: { sofia: 5, marcus: 4, iris: 5, lena: 5 } },
+      { id: "m-vc3", createdBy: ME, kind: "dinner", place: "Via Carota", happenedOn: new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10), note: "the first time.", tagged: ["iris"], accepted: ["iris"], pending: [], photos: [], ratings: { iris: 4 } },
+      { id: "m-run1", createdBy: "marcus", kind: "run", place: "Central Park loop", happenedOn: new Date(Date.now() - 4 * 86400_000).toISOString().slice(0, 10), note: "saturday 6 miles, then bagels.", tagged: ["theo", "iris", ME], accepted: ["theo", "iris", ME], pending: [], photos: [{ id: "mp-r1", url: "/demo/run.jpg" }], ratings: { marcus: 5, theo: 5, iris: 4 } },
+      { id: "m-run2", createdBy: "theo", kind: "run", place: "Brooklyn Bridge Park", happenedOn: new Date(Date.now() - 11 * 86400_000).toISOString().slice(0, 10), note: "", tagged: ["sofia", "naomi"], accepted: ["sofia", "naomi"], pending: [], photos: [], ratings: { theo: 5, sofia: 4, naomi: 5 } },
       { id: "m-theo", createdBy: "theo", kind: "gallery", place: "Dia Beacon", happenedOn: new Date(Date.now() - 20 * 86400_000).toISOString().slice(0, 10), note: "a whole day, one train ride.", tagged: ["sofia"], accepted: ["sofia"], pending: [], photos: [{ id: "mp-t1", url: "/demo/gallery.jpg" }, { id: "mp-t2", url: "/demo/run.jpg" }] },
       { id: "m-lena", createdBy: "lena", kind: "brunch", place: "Sunday in Brooklyn", happenedOn: new Date(Date.now() - 12 * 86400_000).toISOString().slice(0, 10), note: "the pancakes were worth the line.", tagged: [ME, "naomi"], accepted: ["naomi"], pending: [ME], photos: [{ id: "mp-l1", url: "/demo/comedy.jpg" }] },
     ],
@@ -133,7 +138,19 @@ function memView(m: DemoState["memories"][number], invitedBy: string | null) {
   return {
     id: m.id, kind: m.kind, place: m.place, happenedOn: m.happenedOn, note: m.note || null, isMine: m.createdBy === ME,
     withNames: names, waiting: m.createdBy === ME ? m.pending.length : 0, invitedBy, inIt: inMemory(m),
+    placeKey: placeKey(m.place), ...summary([m]), myRating: m.ratings?.[ME] ?? null,
   };
+}
+
+/** same as the place_key column: the part before the first comma, lowercase, single spaces */
+const placeKey = (place: string) => place.split(",")[0].trim().toLowerCase().replace(/\s+/g, " ");
+
+/** same as rating_summary(): every rating counts once; nothing below 3 different people */
+function summary(ms: { ratings?: Record<string, number> }[]) {
+  const all = ms.flatMap((m) => Object.entries(m.ratings ?? {}));
+  const people = new Set(all.map(([u]) => u)).size;
+  if (people < 3) return { rating: null, ratings: null };
+  return { rating: Math.round((all.reduce((t, [, v]) => t + v, 0) / all.length) * 10) / 10, ratings: all.length };
 }
 
 type DemoMemory = DemoState["memories"][number];
@@ -233,6 +250,20 @@ export async function demoStore(): Promise<Store> {
       if (!m || !ph || !inMemory(m)) throw new Error("not found");
       const buf = Buffer.from(await file.arrayBuffer());
       ph.url = `data:image/jpeg;base64,${buf.toString("base64")}`;
+    },
+    async rateMemory(id, stars) {
+      const m = s.memories.find((x) => x.id === id);
+      if (!m || !inMemory(m)) throw new Error("only people who were there can rate it");
+      if (!Number.isInteger(stars) || stars < 1 || stars > 5) throw new Error("pick 1 to 5 stars");
+      m.ratings = { ...(m.ratings ?? {}), [ME]: stars };
+    },
+    async experienceSummary(f): Promise<ExperienceSummary> {
+      if (!f.place && !f.kind) return { average: null, ratings: null, experiences: 0 };
+      const shown = s.memories.filter(
+        (m) => canView(m) && !m.pending.includes(ME) && (!f.place || placeKey(m.place) === f.place) && (!f.kind || m.kind === f.kind),
+      );
+      const r = summary(shown);
+      return { average: r.rating, ratings: r.ratings, experiences: shown.length };
     },
     async prefs() {
       return s.prefs;

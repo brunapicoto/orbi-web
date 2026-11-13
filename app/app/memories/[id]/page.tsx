@@ -4,6 +4,8 @@ import { answerMemory } from "@/app/app/actions";
 import { BlurEditor } from "@/components/app/BlurEditor";
 import { KindIcon } from "@/components/app/KindIcon";
 import { PhotoUpload } from "@/components/app/PhotoUpload";
+import { RateExperience } from "@/components/app/RateExperience";
+import { RatingLine } from "@/components/app/Rating";
 import { kindLabel } from "@/lib/app/kinds";
 import { requireMe } from "@/lib/app/session";
 
@@ -91,7 +93,22 @@ export default async function MemoryPage({ params, searchParams }: { params: Pro
           <KindIcon kind={m.kind} className="h-4 w-4" />
           {kindLabel(m.kind)} · {day(m.happenedOn)}
         </span>
-        <h1 className="display text-[2.75rem] leading-[0.95]">{m.place}</h1>
+        <h1 className="display text-[2.75rem] leading-[0.95]">
+          {invite ? (
+            m.place
+          ) : (
+            <Link href={`/app/memories?place=${encodeURIComponent(m.placeKey)}`} className="hover:text-lavender">
+              {m.place}
+            </Link>
+          )}
+        </h1>
+        {!invite ? (
+          m.rating != null ? (
+            <RatingLine rating={m.rating} ratings={m.ratings} className="text-[15px]" />
+          ) : (
+            <p className="mono text-[12px] text-muted-2">the rating shows once 3 people who were there rate it.</p>
+          )
+        ) : null}
         {m.note ? <p className="display text-[1.5rem] leading-snug">&ldquo;{m.note}&rdquo;</p> : null}
         {!invite ? (
           <p className="mono text-muted">
@@ -101,6 +118,8 @@ export default async function MemoryPage({ params, searchParams }: { params: Pro
         ) : null}
         {!invite && !m.inIt ? <p className="mono text-[12px] text-lavender-soft">from your network</p> : null}
       </header>
+
+      {!invite && m.inIt ? <RateExperience memoryId={m.id} mine={m.myRating} /> : null}
 
       {!invite ? (
         <section className="flex flex-col gap-3" aria-label={m.inIt ? "add a photo" : "who can see this"}>

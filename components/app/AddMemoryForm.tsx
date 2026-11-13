@@ -20,7 +20,7 @@ const today = () => {
 
 const MAX_PHOTOS = 10;
 
-export function AddMemoryForm({ mutuals }: { mutuals: { id: string; firstName: string }[] }) {
+export function AddMemoryForm({ mutuals, places = [] }: { mutuals: { id: string; firstName: string }[]; places?: string[] }) {
   const router = useRouter();
   const [state, setState] = useState<FormState>({});
   const [pending, setPending] = useState(false);
@@ -123,7 +123,12 @@ export function AddMemoryForm({ mutuals }: { mutuals: { id: string; firstName: s
 
       <div className="flex flex-col gap-2">
         <label htmlFor="am-place" className="mono text-muted-2">where</label>
-        <input id="am-place" name="place" placeholder="Lilia, Prospect Park, Marta's rooftop" className={field} />
+        <input id="am-place" name="place" list="am-places" autoComplete="off" placeholder="Lilia, Prospect Park, Marta's rooftop" className={field} />
+        <datalist id="am-places">
+          {places.map((p) => (
+            <option key={p} value={p} />
+          ))}
+        </datalist>
         {fe.place ? <p className="mono text-lavender">{fe.place}</p> : null}
       </div>
 

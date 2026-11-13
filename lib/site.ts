@@ -14,6 +14,7 @@ export const SITE = {
 export const NAV_LINKS = [
   { href: "#how-it-works", label: "how it works" },
   { href: "#from-a-link", label: "from a link" },
+  { href: "#memories", label: "memories" },
   { href: "#why", label: "why" },
   { href: "#faq", label: "faq" },
 ] as const;

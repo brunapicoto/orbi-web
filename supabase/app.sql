@@ -29,7 +29,7 @@ create table if not exists public.connections (
 create table if not exists public.plans (
   id uuid primary key default gen_random_uuid(),
   host_id uuid not null default auth.uid() references public.profiles (id) on delete cascade,
-  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'study', 'sport', 'class', 'other')),
+  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'study', 'sport', 'class', 'hike', 'ski', 'party', 'concert', 'travel', 'beach', 'other')),
   place text not null check (char_length(btrim(place)) between 1 and 80),
   note text check (note is null or char_length(note) <= 280),
   starts_at timestamptz not null,
@@ -53,7 +53,7 @@ alter table public.plans add constraint plans_min_group check (1 + bringing + op
 -- networking plans carry a field (finance, consulting...); kept in sync with lib/app/kinds.ts
 alter table public.plans add column if not exists topic text;
 alter table public.plans drop constraint if exists plans_kind_check;
-alter table public.plans add constraint plans_kind_check check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'study', 'sport', 'class', 'other'));
+alter table public.plans add constraint plans_kind_check check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'study', 'sport', 'class', 'hike', 'ski', 'party', 'concert', 'travel', 'beach', 'other'));
 alter table public.plans drop constraint if exists plans_topic_check;
 alter table public.plans add constraint plans_topic_check check (topic is null or (kind = 'networking' and topic in ('finance', 'consulting', 'tech', 'startups', 'marketing', 'law', 'health', 'creative', 'policy', 'school')));
 -- plans made from a link (a tiktok or reel), with a place on the map and a minimum to happen.
@@ -426,7 +426,7 @@ $$;
 create table if not exists public.memories (
   id uuid primary key default gen_random_uuid(),
   created_by uuid not null default auth.uid() references public.profiles (id) on delete cascade,
-  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'study', 'sport', 'class', 'other')),
+  kind text not null check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'study', 'sport', 'class', 'hike', 'ski', 'party', 'concert', 'travel', 'beach', 'other')),
   place text not null check (char_length(btrim(place)) between 1 and 80),
   happened_on date not null,
   note text check (note is null or char_length(note) <= 280),
@@ -434,7 +434,12 @@ create table if not exists public.memories (
 );
 
 alter table public.memories drop constraint if exists memories_kind_check;
-alter table public.memories add constraint memories_kind_check check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'study', 'sport', 'class', 'other'));
+-- the place, as a key to group memories at the same spot: "Pinch Chinese, SoHo" and "pinch chinese" match.
+-- (the part before the first comma, lowercase, single spaces)
+alter table public.memories add column if not exists place_key text
+  generated always as (lower(btrim(regexp_replace(split_part(place, ',', 1), '\s+', ' ', 'g')))) stored;
+create index if not exists memories_place_key_idx on public.memories (place_key);
+alter table public.memories add constraint memories_kind_check check (kind in ('dinner', 'brunch', 'run', 'workout', 'painting', 'sauna', 'gallery', 'show', 'bar', 'drinks', 'networking', 'study', 'sport', 'class', 'hike', 'ski', 'party', 'concert', 'travel', 'beach', 'other'));
 
 create table if not exists public.memory_people (
   memory_id uuid not null references public.memories (id) on delete cascade,
@@ -546,6 +551,89 @@ begin
 end;
 $$;
 
+-- ---------------------------------------------------------------- experience ratings
+-- We rate experiences, never people. Only people who were there (the creator, or someone who accepted
+-- "you were there") can rate, 1 to 5, once, and change it later. Ratings are anonymous: no function
+-- returns who rated what, and nothing is shown until 3 different people have rated what's being summed up.
+create table if not exists public.memory_ratings (
+  id uuid primary key default gen_random_uuid(),
+  memory_id uuid not null references public.memories (id) on delete cascade,
+  user_id uuid not null default auth.uid() references public.profiles (id) on delete cascade,
+  value int not null check (value between 1 and 5),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (memory_id, user_id)
+);
+alter table public.memory_ratings enable row level security;
+revoke all on public.memory_ratings from anon, authenticated;
+
+-- rate (or re-rate) a memory you were at
+create or replace function public.rate_memory(m uuid, stars int)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  me uuid := auth.uid();
+begin
+  if not can_see_memory(m, me) then raise exception 'only people who were there can rate it'; end if;
+  if stars is null or stars < 1 or stars > 5 then raise exception 'pick 1 to 5 stars'; end if;
+  insert into memory_ratings (memory_id, user_id, value) values (m, me, stars)
+  on conflict (memory_id, user_id) do update set value = excluded.value, updated_at = now();
+end;
+$$;
+
+-- your own rating, only to you
+create or replace function public.my_memory_rating(m uuid)
+returns int
+language sql stable security definer set search_path = public
+as $$
+  select value from memory_ratings where memory_id = m and user_id = auth.uid();
+$$;
+
+-- the summary of a set of ratings: average and count, or nothing below 3 different people
+create or replace function public.rating_summary(ids uuid[])
+returns table (average numeric, ratings int, raters int)
+language sql stable security definer set search_path = public
+as $$
+  with r as (select value, user_id from memory_ratings where memory_id = any(ids))
+  select case when count(distinct user_id) >= 3 then round(avg(value), 1) end,
+         case when count(distinct user_id) >= 3 then count(*)::int end,
+         case when count(distinct user_id) >= 3 then count(distinct user_id)::int end
+  from r;
+$$;
+
+-- one memory's rating, for anyone who can see it
+create or replace function public.memory_rating(m uuid)
+returns table (average numeric, ratings int)
+language sql stable security definer set search_path = public
+as $$
+  select s.average, s.ratings from rating_summary(array[m]) s where can_view_memory(m, auth.uid());
+$$;
+
+-- discovery: everything you can see at one place, or of one kind. every individual rating counts
+-- once (not an average of averages); shown only once 3 different people have rated across them.
+drop function if exists public.experience_summary(text, text);
+create function public.experience_summary(at_place text default null, of_kind text default null)
+returns table (average numeric, ratings int, experiences int)
+language sql stable security definer set search_path = public
+as $$
+  with shown as (
+    select m.id from memories m
+    where (at_place is not null or of_kind is not null)
+      and (at_place is null or m.place_key = at_place)
+      and (of_kind is null or m.kind = of_kind)
+      and can_view_memory(m.id, auth.uid())
+      and not exists (select 1 from memory_people mp where mp.memory_id = m.id and mp.user_id = auth.uid() and mp.status = 'pending')
+  )
+  select s.average, s.ratings, (select count(*)::int from shown)
+  from rating_summary(array(select id from shown)) s;
+$$;
+
+revoke all on function public.rate_memory(uuid, int), public.my_memory_rating(uuid), public.rating_summary(uuid[]),
+  public.memory_rating(uuid), public.experience_summary(text, text) from public, anon, authenticated;
+grant execute on function public.rate_memory(uuid, int), public.my_memory_rating(uuid), public.memory_rating(uuid),
+  public.experience_summary(text, text) to authenticated;
+
 -- memories you can see: yours, ones you accepted, and ones from your network (view only).
 -- names are only of people who accepted. a memory waiting for your answer shows up as an invite instead.
 drop function if exists public.memory_detail(uuid);
@@ -553,7 +641,7 @@ drop function if exists public.my_memories();
 create function public.my_memories()
 returns table (
   id uuid, kind text, place text, happened_on date, note text, is_mine boolean, with_names text[], waiting int,
-  in_it boolean
+  in_it boolean, place_key text, rating numeric, ratings int, my_rating int
 )
 language sql stable security definer set search_path = public
 as $$
@@ -567,7 +655,11 @@ as $$
          case when m.created_by = auth.uid()
               then (select count(*)::int from memory_people where memory_id = m.id and status = 'pending')
               else 0 end,
-         can_see_memory(m.id, auth.uid())
+         can_see_memory(m.id, auth.uid()),
+         m.place_key,
+         (select s.average from rating_summary(array[m.id]) s),
+         (select s.ratings from rating_summary(array[m.id]) s),
+         (select value from memory_ratings r where r.memory_id = m.id and r.user_id = auth.uid())
   from memories m
   where can_view_memory(m.id, auth.uid())
     and not exists (select 1 from memory_people mp where mp.memory_id = m.id and mp.user_id = auth.uid() and mp.status = 'pending')
@@ -591,14 +683,15 @@ $$;
 create function public.memory_detail(m uuid)
 returns table (
   id uuid, kind text, place text, happened_on date, note text, is_mine boolean, with_names text[], waiting int, invited_by text,
-  in_it boolean
+  in_it boolean, place_key text, rating numeric, ratings int, my_rating int
 )
 language sql stable security definer set search_path = public
 as $$
-  select i.id, i.kind, i.place, i.happened_on, null, false, '{}'::text[], 0, i.from_name, false
+  select i.id, i.kind, i.place, i.happened_on, null, false, '{}'::text[], 0, i.from_name, false, null::text, null::numeric, null::int, null::int
   from memory_invites() i where i.id = m
   union all
-  select mm.id, mm.kind, mm.place, mm.happened_on, mm.note, mm.is_mine, mm.with_names, mm.waiting, null::text, mm.in_it
+  select mm.id, mm.kind, mm.place, mm.happened_on, mm.note, mm.is_mine, mm.with_names, mm.waiting, null::text, mm.in_it,
+         mm.place_key, mm.rating, mm.ratings, mm.my_rating
   from my_memories() mm where mm.id = m;
 $$;
 
@@ -619,12 +712,12 @@ create table if not exists public.preferences (
   areas text[] not null default '{}',
   group_size text check (group_size is null or group_size in ('small', 'medium', 'big')),
   updated_at timestamptz not null default now(),
-  check (cardinality(kinds) <= 14 and cardinality(times) <= 4 and cardinality(areas) <= 4)
+  check (cardinality(kinds) <= 20 and cardinality(times) <= 4 and cardinality(areas) <= 4)
 );
 alter table public.preferences add column if not exists topics text[] not null default '{}';
 -- room for every plan type (lib/app/kinds.ts), on projects created before study, sport and class
 alter table public.preferences drop constraint if exists preferences_check;
-alter table public.preferences add constraint preferences_check check (cardinality(kinds) <= 14 and cardinality(times) <= 4 and cardinality(areas) <= 4);
+alter table public.preferences add constraint preferences_check check (cardinality(kinds) <= 20 and cardinality(times) <= 4 and cardinality(areas) <= 4);
 alter table public.preferences enable row level security;
 drop policy if exists preferences_own on public.preferences;
 create policy preferences_own on public.preferences for all to authenticated

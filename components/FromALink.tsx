@@ -111,10 +111,10 @@ export function FromALink() {
 
         <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
           <a
-            href="/app/new/link"
+            href="#waitlist"
             className="mono inline-flex min-h-14 items-center rounded-full bg-bone px-8 text-[14px] text-bordeaux transition-colors hover:bg-lavender hover:text-ink"
           >
-            try it
+            join the waitlist
           </a>
           <p className="mono text-lavender-soft">no app download needed. small groups, real plans.</p>
         </div>

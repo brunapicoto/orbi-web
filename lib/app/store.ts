@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
 import { demoStore } from "@/lib/app/demo";
-import type { Me, PlanTeaser, MemoryInvite, MemoryView, NewMemory, NewPlan, OrbitState, Prefs, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
+import type { ExperienceSummary, Me, PlanTeaser, MemoryInvite, MemoryView, NewMemory, NewPlan, OrbitState, Prefs, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
 
 /** Everything the app reads and writes. Two implementations: Supabase, or demo data. */
 export interface Store {
@@ -25,6 +25,10 @@ export interface Store {
   uploadMemoryPhoto(id: string, file: File): Promise<void>;
   /** swap a photo for a copy where you blurred yourself (people in the memory only) */
   replaceMemoryPhoto(memoryId: string, photoId: string, file: File): Promise<void>;
+  /** rate an experience you were at, 1 to 5 (again to change it). anonymous. */
+  rateMemory(id: string, stars: number): Promise<void>;
+  /** everything you can see at a place, or of one activity: one weighted score, hidden below 3 people */
+  experienceSummary(f: { place?: string; kind?: string }): Promise<ExperienceSummary>;
   savePrefs(p: Prefs): Promise<void>;
   keepInOrbit(id: string, target: string): Promise<"picked" | "connected">;
   dropPick(id: string, target: string): Promise<void>;
@@ -60,16 +64,20 @@ export function friendly(err: unknown): string {
   if (/profile first/.test(msg)) return "add your first name first.";
   if (/not found/.test(msg)) return "this plan isn't available.";
   if (/already happened/.test(msg)) return "pick a day that already happened.";
+  if (/who were there can rate/.test(msg)) return "only people who were there can rate it.";
   return "something went wrong. please try again.";
 }
 
 type MemRow = {
   id: string; kind: string; place: string; happened_on: string; note: string | null;
   is_mine: boolean; with_names: string[] | null; waiting: number; invited_by?: string | null; in_it?: boolean | null;
+  place_key?: string | null; rating?: number | string | null; ratings?: number | null; my_rating?: number | null;
 };
 const toMemory = (r: MemRow): MemoryView => ({
   id: r.id, kind: r.kind, place: r.place, happenedOn: r.happened_on, note: r.note, isMine: r.is_mine,
   withNames: r.with_names ?? [], waiting: r.waiting ?? 0, invitedBy: r.invited_by ?? null, inIt: r.in_it ?? false,
+  placeKey: r.place_key ?? r.place.split(",")[0].trim().toLowerCase().replace(/\s+/g, " "),
+  rating: r.rating == null ? null : Number(r.rating), ratings: r.ratings ?? null, myRating: r.my_rating ?? null,
 });
 
 type TeaserRow = {
@@ -191,6 +199,16 @@ async function supabaseStore(): Promise<Store> {
       if (error) throw error;
       const { error: e2 } = await sb.rpc("replace_memory_photo", { photo: photoId, new_path: path });
       if (e2) throw e2;
+    },
+    async rateMemory(id, stars) {
+      const { error } = await sb.rpc("rate_memory", { m: id, stars });
+      if (error) throw error;
+    },
+    async experienceSummary(f) {
+      const { data, error } = await sb.rpc("experience_summary", { at_place: f.place ?? null, of_kind: f.kind ?? null });
+      const row = (data as { average: number | string | null; ratings: number | null; experiences: number }[] | null)?.[0];
+      if (error || !row) return { average: null, ratings: null, experiences: 0 };
+      return { average: row.average == null ? null : Number(row.average), ratings: row.ratings, experiences: row.experiences };
     },
     async prefs() {
       const { data } = await sb.from("preferences").select("kinds, times, areas, topics, group_size").maybeSingle();

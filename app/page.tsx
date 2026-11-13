@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { AfterThePlan } from "@/components/AfterThePlan";
 import { Collage } from "@/components/Collage";
 import { Faq } from "@/components/Faq";
 import { Footer } from "@/components/Footer";
@@ -77,7 +78,15 @@ const FAQ = [
   },
   {
     q: "who can see my plans?",
-    a: "Only your accepted connections. Nobody sees who else is going until you meet.",
+    a: "Only your accepted connections. A link you share shows the plan and how many are in, never who. Nobody sees who else is going until you meet.",
+  },
+  {
+    q: "what happens after a plan?",
+    a: "It becomes a memory, with the group's photos. Tag who was there: they choose to accept, accept with their face blurred, or decline. Your network and the networks of everyone tagged can see it. No likes, no comments.",
+  },
+  {
+    q: "can people be rated?",
+    a: "Never. Only the people who were there rate the experience, 1 to 5, anonymously. A score shows once 3 of them have rated. Look up a place or an activity to see how it went across your network.",
   },
   {
     q: "what if nobody joins?",
@@ -173,6 +182,9 @@ export default function Home() {
             ))}
           </ul>
         </section>
+
+        {/* 5b. after the plan: memories and ratings */}
+        <AfterThePlan />
 
         {/* 6. why it's different */}
         <Section id="why" labelledBy="why-title" label="why it's different" className="border-t border-line">

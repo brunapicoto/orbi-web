@@ -14,6 +14,12 @@ export const KINDS = [
   { id: "study", label: "study session" },
   { id: "sport", label: "sport" },
   { id: "class", label: "class" },
+  { id: "hike", label: "hike" },
+  { id: "ski", label: "skiing" },
+  { id: "party", label: "party" },
+  { id: "concert", label: "concert" },
+  { id: "travel", label: "trip" },
+  { id: "beach", label: "beach day" },
   { id: "other", label: "something else" },
 ] as const;
 

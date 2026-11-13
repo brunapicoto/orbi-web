@@ -321,6 +321,20 @@ export async function answerMemory(id: string, accept: boolean, blur = false) {
   redirect(accept ? `/app/memories/${id}${blur ? "?blur=1" : ""}` : "/app/memories");
 }
 
+/** stars for an experience you were at. anonymous; the rating is about the experience, never the people. */
+export async function rateMemory(id: string, stars: number): Promise<FormState> {
+  if (!Number.isInteger(stars) || stars < 1 || stars > 5) return { error: "pick 1 to 5 stars." };
+  const store = await getStore();
+  try {
+    await store.rateMemory(id, stars);
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath(`/app/memories/${id}`);
+  revalidatePath("/app/memories");
+  return { ok: true };
+}
+
 /** a copy of a photo with you blurred, made on your phone, replaces the original */
 export async function replaceMemoryPhoto(fd: FormData): Promise<FormState> {
   const memoryId = String(fd.get("memoryId") ?? "");

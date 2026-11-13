@@ -69,7 +69,17 @@ export type MemoryView = {
   invitedBy: string | null;
   /** you made it or accepted your tag (can add photos, blur yourself). otherwise you see it through your network. */
   inIt: boolean;
+  /** the place as a key, to group memories at the same spot */
+  placeKey: string;
+  /** the experience's rating: null until 3 different people who were there have rated */
+  rating: number | null;
+  ratings: number | null;
+  /** your own stars, if you were there and rated (only ever shown to you) */
+  myRating: number | null;
 };
+
+/** All the ratings at a place, or of one activity, that you can see. null until 3 different people rated. */
+export type ExperienceSummary = { average: number | null; ratings: number | null; experiences: number };
 
 export type MemoryInvite = { id: string; kind: string; place: string; happenedOn: string; fromName: string };
 

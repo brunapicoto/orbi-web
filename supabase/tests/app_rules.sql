@@ -260,6 +260,63 @@ select pg_temp.check((select count(*) from my_memories()) = 0, 'someone outside 
 select pg_temp.expect_fail($$select replace_memory_photo((select id from memory_photos limit 1), current_setting('t.mem') || '/a-blur.jpg')$$, 'or swap them');
 reset role;
 
+-- ---------------------------------------------------------------- experience ratings (never people)
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select set_config('t.m1', add_memory('hike', 'Pinch Chinese, SoHo', current_date - 3, null, array['00000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-00000000000c','00000000-0000-0000-0000-00000000000d']::uuid[])::text, false);
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b'); select answer_memory(current_setting('t.m1')::uuid, true);
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c'); select answer_memory(current_setting('t.m1')::uuid, true);
+-- Duda leaves her tag pending
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a'); select rate_memory(current_setting('t.m1')::uuid, 5);
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b'); select rate_memory(current_setting('t.m1')::uuid, 4);
+select pg_temp.check((select rating from my_memories() where id = current_setting('t.m1')::uuid) is null and (select ratings from my_memories() where id = current_setting('t.m1')::uuid) is null, 'with 2 people rated, no average and no count');
+select pg_temp.check(my_memory_rating(current_setting('t.m1')::uuid) = 4, 'Bia sees her own rating, only hers');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c'); select rate_memory(current_setting('t.m1')::uuid, 5);
+select pg_temp.check((select rating from my_memories() where id = current_setting('t.m1')::uuid) = 4.7 and (select ratings from my_memories() where id = current_setting('t.m1')::uuid) = 3, 'at 3 people: 4.7 from 3 ratings');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b'); select rate_memory(current_setting('t.m1')::uuid, 3);
+select pg_temp.check((select rating from my_memories() where id = current_setting('t.m1')::uuid) = 4.3 and (select ratings from my_memories() where id = current_setting('t.m1')::uuid) = 3, 'Bia changes hers: one rating each, the average updates (4.3)');
+select pg_temp.expect_fail($$select rate_memory(current_setting('t.m1')::uuid, 6)$$, '1 to 5 only');
+
+-- who cannot rate
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000d');
+select pg_temp.expect_fail($$select rate_memory(current_setting('t.m1')::uuid, 5)$$, 'Duda, tagged but not confirmed, cannot rate');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000e');
+select pg_temp.check((select count(*) from my_memories() where id = current_setting('t.m1')::uuid) = 1, 'Eva (Bia''s network) sees it');
+select pg_temp.check((select rating from my_memories() where id = current_setting('t.m1')::uuid) = 4.3, 'and its rating');
+select pg_temp.expect_fail($$select rate_memory(current_setting('t.m1')::uuid, 5)$$, 'but she was not there, so she cannot rate');
+select pg_temp.expect_fail($$select * from memory_ratings$$, 'nobody reads the ratings table');
+select pg_temp.expect_fail($$select * from rating_summary(array[current_setting('t.m1')::uuid])$$, 'or sums up memories they pick');
+select pg_temp.check(
+  pg_get_function_result('public.my_memories()'::regprocedure) || pg_get_function_result('public.experience_summary(text, text)'::regprocedure)
+  || pg_get_function_result('public.memory_rating(uuid)'::regprocedure) not ilike '%user%',
+  'no rating function returns who rated');
+
+-- a second time at the same place (another name style), rated by 2
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select set_config('t.m2', add_memory('hike', '  pinch   CHINESE ', current_date - 1, null, array['00000000-0000-0000-0000-00000000000a']::uuid[])::text, false);
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a'); select answer_memory(current_setting('t.m2')::uuid, true);
+select rate_memory(current_setting('t.m2')::uuid, 2);
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b'); select rate_memory(current_setting('t.m2')::uuid, 2);
+select pg_temp.check((select ratings from my_memories() where id = current_setting('t.m2')::uuid) is null, 'the new one has its own rating: hidden, only 2 people');
+select pg_temp.check((select rating from my_memories() where id = current_setting('t.m1')::uuid) = 4.3, 'the first keeps its own 4.3');
+
+-- the place: every rating counts once (5,3,5,2,2 = 3.4), not the average of averages
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check((select place_key from my_memories() where id = current_setting('t.m2')::uuid) = 'pinch chinese', 'both are "pinch chinese"');
+select pg_temp.check((select average from experience_summary('pinch chinese', null)) = 3.4, 'the place: 3.4, all ratings weighted equally');
+select pg_temp.check((select ratings from experience_summary('pinch chinese', null)) = 5 and (select experiences from experience_summary('pinch chinese', null)) = 2, 'from 5 ratings over 2 experiences');
+select pg_temp.check((select average from experience_summary(null, 'hike')) = 3.4 and (select experiences from experience_summary(null, 'hike')) = 2, 'the activity (hiking) works the same way');
+select pg_temp.check((select count(*) from experience_summary(null, null) where average is not null) = 0, 'nothing to sum up without a place or activity');
+
+-- the threshold is per viewer: only what you can see is summed up
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000d');
+select pg_temp.check((select experiences from experience_summary('pinch chinese', null)) = 1, 'Duda (pending on the first) sees only the second');
+select pg_temp.check((select average from experience_summary('pinch chinese', null)) is null, 'which has 2 people rated: no score for her');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000011');
+select pg_temp.check((select experiences from experience_summary('pinch chinese', null)) = 0 and (select average from experience_summary('pinch chinese', null)) is null, 'someone outside every network gets nothing');
+reset role;
+
 -- ---------------------------------------------------------------- preferences are private
 set role authenticated;
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');

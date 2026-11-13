@@ -14,7 +14,7 @@ const STEPS: { n: string; title: string; body: string; phase: DialPhase }[] = [
   {
     n: "01",
     title: "post a plan",
-    body: "Painting, a run, the sauna, a dinner. Set the open spots. Every plan needs 3 or more people.",
+    body: "Painting, a run, the sauna, a dinner. Or paste a TikTok you saved. Set the spots and the minimum to happen. Every plan needs 3 or more people.",
     phase: "plan",
   },
   {
@@ -29,9 +29,15 @@ const STEPS: { n: string; title: string; body: string; phase: DialPhase }[] = [
     body: "The group is revealed when you show up. If a plan doesn't reach 3, it quietly doesn't happen. Nobody gets a no.",
     phase: "reveal",
   },
+  {
+    n: "04",
+    title: "keep it, rate it",
+    body: "The plan becomes a memory with the group's photos. The people who were there rate the experience, anonymously. Never the people.",
+    phase: "full",
+  },
 ];
 
-/** Three steps; on desktop the dial stays put and changes as each step scrolls past. */
+/** The steps; on desktop the dial stays put and changes as each step scrolls past. */
 export function HowItWorks() {
   const [active, setActive] = useState(0);
   return (
