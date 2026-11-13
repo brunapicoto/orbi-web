@@ -216,12 +216,6 @@ export default function Home() {
                 be there when it starts
               </h2>
               <p className="max-w-[36ch] text-lavender-soft">we&apos;re launching in new york. join the list and bring your mutuals.</p>
-              <p className="mono text-lavender-soft">
-                already have an account?{" "}
-                <a href="/app" className="link-draw text-bone">
-                  sign in here
-                </a>
-              </p>
             </div>
             <WaitlistForm />
           </div>

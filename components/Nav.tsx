@@ -23,12 +23,9 @@ export function Nav() {
             </li>
           ))}
         </ul>
-        <a href="/app" className="mono link-draw ml-auto whitespace-nowrap text-[13px] text-lavender-soft sm:ml-0">
-          sign in
-        </a>
         <a
           href="#waitlist"
-          className="mono inline-flex min-h-11 items-center rounded-full bg-bone px-5 text-[13px] text-bordeaux transition-colors hover:bg-lavender hover:text-ink"
+          className="mono ml-auto inline-flex min-h-11 items-center rounded-full bg-bone px-5 text-[13px] text-bordeaux transition-colors hover:bg-lavender hover:text-ink sm:ml-0"
         >
           join the waitlist
         </a>
