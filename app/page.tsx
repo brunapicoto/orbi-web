@@ -44,6 +44,14 @@ const DIFFERENT = [
   { title: "groups by design", body: "3+ people per plan, every time." },
 ];
 
+// the IRL economy: people pay more to be in the room as life gets more digital
+const IRL_STAT = {
+  value: "$1 trillion",
+  label: "spent on being there in person (concerts, theater, live sports) by 2030, up from about $700 billion in 2024. an estimate.",
+  source: "providence equity, in fortune, 2026",
+  href: "https://fortune.com/2026/10/25/irl-economy-live-events-experience-economy-ai/",
+};
+
 const STATS = [
   {
     value: "1 in 6",
@@ -211,7 +219,15 @@ export default function Home() {
           <h2 id="now-title" className="sr-only">
             why now
           </h2>
+          <Reveal>
+            <p className="display mb-10 max-w-[22ch] text-[clamp(1.9rem,4.4vw,3.25rem)]">
+              the more digital life gets, <span className="text-lavender">the more real life is worth.</span>
+            </p>
+          </Reveal>
           <ul className="grid gap-4 sm:grid-cols-2">
+            <Reveal as="li" className="sm:col-span-2">
+              <StatCard {...IRL_STAT} />
+            </Reveal>
             {STATS.map((s, i) => (
               <Reveal as="li" key={s.value} delay={(i % 2) * 0.08}>
                 <StatCard {...s} />
