@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { geocode, platformOf, readLink, suggestPlan, type LinkSource, type PlanDraft } from "@/lib/app/fromLink";
+import { geocode, parseFrames, platformOf, readLink, suggestPlan, type LinkSource, type PlanDraft } from "@/lib/app/fromLink";
 import { KIND_IDS, TOPIC_IDS } from "@/lib/app/kinds";
 import { friendly, getStore } from "@/lib/app/store";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
@@ -130,16 +130,17 @@ export async function draftFromLink(_prev: DraftState, fd: FormData): Promise<Dr
   if (!platform) return { error: "paste a tiktok or instagram link (it starts with https://)." };
   const store = await getStore();
   if (!(await store.me())) return { error: "sign in first." };
+  const frames = parseFrames(fd.getAll("frames").map(String));
   const source = await readLink(url, caption);
-  if (!source.caption) {
+  if (!source.caption && !frames.length) {
     return {
       needsCaption: true,
       error: platform === "instagram"
-        ? "instagram doesn't share captions with other apps. paste the caption below, or a few words about the place."
-        : "we couldn't read this video. paste its caption below, or a few words about the place.",
+        ? "instagram doesn't share captions with other apps. add the video below, or paste the caption."
+        : "we couldn't read this video. add the video file below, or paste its caption.",
     };
   }
-  const draft = await suggestPlan(source);
+  const draft = await suggestPlan(source, frames);
   return { draft, source };
 }
 

@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { draftFromLink, type DraftState } from "@/app/app/actions";
 import { NewPlanForm } from "@/components/app/NewPlanForm";
 import { categoryOf } from "@/lib/app/categories";
+import { videoFrames } from "@/lib/app/frames";
 
 const field =
   "w-full rounded-2xl border border-line bg-ink-2 px-4 py-3.5 text-[17px] text-bone placeholder:text-muted-2 outline-none focus-visible:border-lavender focus-visible:ring-2 focus-visible:ring-lavender";
@@ -14,6 +15,23 @@ export function LinkPlanFlow({ initialUrl = "" }: { initialUrl?: string }) {
   const [url, setUrl] = useState(initialUrl);
   const [caption, setCaption] = useState("");
   const [again, setAgain] = useState(false);
+  const [frames, setFrames] = useState<string[]>([]);
+  const [reading, setReading] = useState(false);
+  const [videoErr, setVideoErr] = useState("");
+  const addVideo = async (file: File | undefined) => {
+    setVideoErr("");
+    setFrames([]);
+    if (!file) return;
+    if (!file.type.startsWith("video/")) return setVideoErr("that's not a video file.");
+    setReading(true);
+    try {
+      setFrames(await videoFrames(file));
+    } catch {
+      setVideoErr("we couldn't read that video. try another file, or paste the caption.");
+    } finally {
+      setReading(false);
+    }
+  };
   const isInstagram = /instagram\.com/i.test(url);
   const showCaption = isInstagram || state.needsCaption;
 
@@ -64,8 +82,36 @@ export function LinkPlanFlow({ initialUrl = "" }: { initialUrl?: string }) {
           aria-describedby="lk-help"
         />
         <p id="lk-help" className="text-[15px] text-muted-2">
-          orbi reads the caption and suggests the place, a price and a day. you check everything before it&apos;s posted.
+          orbi reads the caption and the cover, and suggests the place, a price and a day. you check everything before it&apos;s posted.
         </p>
+      </div>
+      <div className="flex flex-col gap-3 rounded-2xl border border-line bg-ink-2 p-4">
+        <label htmlFor="lk-video" className="mono text-muted-2">
+          add the video (optional, but better)
+        </label>
+        <p className="text-[15px] text-muted">
+          save it from tiktok or instagram, then pick it here. orbi looks at the whole clip (signs, menus, the place) not just the caption. the video stays on your phone; only a few stills are sent.
+        </p>
+        <input
+          id="lk-video"
+          type="file"
+          accept="video/*"
+          onChange={(e) => addVideo(e.target.files?.[0])}
+          className="mono text-[13px] text-muted file:mr-3 file:min-h-11 file:rounded-full file:border-0 file:bg-bone file:px-4 file:text-ink"
+        />
+        {reading ? <p className="mono text-lavender" aria-live="polite">looking through the video…</p> : null}
+        {videoErr ? <p role="alert" className="mono text-lavender">{videoErr}</p> : null}
+        {frames.length ? (
+          <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]" aria-label={`${frames.length} stills from the video`}>
+            {frames.map((f, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={i} src={f} alt="" className="h-20 w-auto shrink-0 rounded-lg" />
+            ))}
+          </div>
+        ) : null}
+        {frames.map((f, i) => (
+          <input key={i} type="hidden" name="frames" value={f} />
+        ))}
       </div>
       {showCaption ? (
         <div className="flex flex-col gap-2">
@@ -80,8 +126,8 @@ export function LinkPlanFlow({ initialUrl = "" }: { initialUrl?: string }) {
           {state.error}
         </p>
       ) : null}
-      <button type="submit" disabled={pending || !url.trim()} className="mono min-h-14 rounded-full bg-bordeaux px-8 text-[15px] text-bone transition-colors hover:bg-lavender hover:text-ink disabled:opacity-60">
-        {pending ? "reading the video…" : "make it a plan"}
+      <button type="submit" disabled={pending || reading || !url.trim()} className="mono min-h-14 rounded-full bg-bordeaux px-8 text-[15px] text-bone transition-colors hover:bg-lavender hover:text-ink disabled:opacity-60">
+        {pending ? (frames.length ? "watching the video…" : "reading the video…") : "make it a plan"}
       </button>
     </form>
   );
