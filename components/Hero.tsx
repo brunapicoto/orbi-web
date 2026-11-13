@@ -38,6 +38,12 @@ export function Hero({ scenes }: { scenes: [SceneSlot, SceneSlot] }) {
         </a>
         <span className="mono text-lavender-soft">starting in new york</span>
       </div>
+      <p className="mono text-lavender-soft">
+        already have an account?{" "}
+        <a href="/app" className="link-draw text-bone">
+          sign in here
+        </a>
+      </p>
     </div>
   );
 

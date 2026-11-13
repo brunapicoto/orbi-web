@@ -3,6 +3,8 @@
 /* ORBI design tokens. Colors are the brief's exact values. */
 @theme {
   --color-bordeaux: #7A1428;
+  /* always bordeaux, even inside .app-theme (where "bordeaux" surfaces turn black) */
+  --color-wine: #7A1428;
   --color-ink: #0E0C0D;
   --color-ink-2: #1A1618;
   --color-line: #2E2729;
@@ -28,6 +30,18 @@ html {
   scroll-behavior: smooth;
   scroll-padding-top: 80px;
   -webkit-text-size-adjust: 100%;
+}
+
+/* The app: bordeaux as the background, black surfaces on top of it, text in white and lilac.
+   Colours are remapped here so every app component follows without new classes:
+   cards (ink-2) and "bordeaux" buttons and blocks turn black, grey text turns lilac. */
+.app-theme {
+  --color-bordeaux: #0E0C0D;
+  --color-ink-2: #0E0C0D;
+  --color-line: rgba(244, 241, 241, 0.16);
+  --color-muted: #DFE3FB;
+  --color-muted-2: #B4C0F7;
+  background: var(--color-wine);
 }
 
 body {

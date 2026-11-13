@@ -9,14 +9,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0E0C0D",
+  themeColor: "#7A1428",
   viewportFit: "cover",
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const demo = !supabaseConfigured();
   return (
-    <div className="min-h-dvh bg-ink text-bone">
+    <div className="app-theme min-h-dvh text-bone">
       {demo ? (
         <p className="mono bg-lavender px-4 py-2 text-center text-[12px] text-ink" style={{ paddingTop: "max(8px, env(safe-area-inset-top, 0px))" }}>
           demo mode · example data, nothing is saved

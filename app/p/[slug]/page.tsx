@@ -44,7 +44,7 @@ export default async function PublicPlan({ params }: { params: Promise<{ slug: s
   const price = priceLabel(t.priceLevel);
 
   return (
-    <div className="min-h-dvh bg-ink text-bone">
+    <div className="app-theme min-h-dvh text-bone">
       {data.demo ? (
         <p className="mono bg-lavender px-4 py-2 text-center text-[12px] text-ink">demo mode · example data, nothing is saved</p>
       ) : null}

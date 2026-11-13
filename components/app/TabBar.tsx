@@ -33,7 +33,7 @@ export function TabBar() {
           <Link
             href="/app/new"
             aria-label="post a plan"
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-bordeaux text-bone transition-colors hover:bg-lavender hover:text-ink"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-wine text-bone ring-1 ring-lavender/40 transition-colors hover:bg-lavender hover:text-ink"
           >
             <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden="true">
               <path d="M12 5v14M5 12h14" />
