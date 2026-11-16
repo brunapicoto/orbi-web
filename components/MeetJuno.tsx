@@ -4,7 +4,7 @@ import { Reveal } from "@/components/Reveal";
 const ASK = ["4 of us", "$$", "night", "food", "williamsburg"];
 
 const POINTS = [
-  { t: "tell it the vibe", b: "how many of you, the budget, the neighborhood, a day or a night. that's it." },
+  { t: "tell how many of you", b: "then the budget, the neighborhood, a day or a night, and the vibe. that's it." },
   { t: "it uses your lists", b: "save coffee shops, bars, restaurants, parks and hidden gems, or bring them over from tiktok, instagram or your notes. only you see them." },
   { t: "and what your network loves", b: "places that are popular with people one step from you, with the scores from people who were there. never who went." },
 ];
