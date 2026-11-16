@@ -7,6 +7,7 @@ import { Footer } from "@/components/Footer";
 import { Hero, type SceneSlot } from "@/components/Hero";
 import { FromALink } from "@/components/FromALink";
 import { HowItWorks } from "@/components/HowItWorks";
+import { MeetJuno } from "@/components/MeetJuno";
 import { Nav } from "@/components/Nav";
 import { PlanTicket } from "@/components/PlanTicket";
 import { Reveal } from "@/components/Reveal";
@@ -179,6 +180,9 @@ export default function Home() {
 
         {/* 4b. from a link */}
         <FromALink />
+
+        {/* 4c. meet juno */}
+        <MeetJuno />
 
         {/* 5. any plan */}
         <section aria-labelledby="plans-title" className="bg-ink pb-24 md:pb-36">
