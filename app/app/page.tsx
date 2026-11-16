@@ -53,7 +53,7 @@ export default async function PlansHome({ searchParams }: { searchParams: Promis
     <div className="flex flex-col gap-10">
       <header className="flex flex-col gap-4">
         <p className="mono text-[12px] uppercase tracking-widest text-muted-2">this week · new york</p>
-        <h1 className="display text-[3.4rem]">what&apos;s the plan?</h1>
+        <h1 className="display text-[3.4rem]">what is your orbit up to?</h1>
         <nav aria-label="show" className="-mx-5 flex items-center gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
           <Chip href={q({ show: null })} active={view === "everyone"} label="everyone" />
           <Chip href={q({ show: "open" })} active={view === "open"} label="spots open" />
