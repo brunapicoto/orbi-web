@@ -13,7 +13,7 @@ const field = "w-full rounded-2xl border border-line bg-ink-2 px-4 py-3.5 text-[
 /** Juno: group, budget, neighborhood, the kind of day or night. One plan back, ready to post. */
 export function JunoPlanner() {
   const [state, action, pending] = useActionState<JunoState, FormData>(planWithJuno, {});
-  const [size, setSize] = useState(4);
+  const [size, setSize] = useState<"small" | "medium" | "big">("small");
   const [budget, setBudget] = useState("$$");
   const [when, setWhen] = useState<"day" | "night">("night");
   const [vibe, setVibe] = useState("");
@@ -63,12 +63,14 @@ export function JunoPlanner() {
 
       <form id="juno-form" action={action} className="flex flex-col gap-6">
         <fieldset className="flex flex-col gap-3">
-          <legend className="mono mb-2 text-muted-2">how many of you</legend>
-          <div className="flex items-center gap-3">
-            <button type="button" aria-label="fewer" onClick={() => setSize(Math.max(3, size - 1))} className="flex h-12 w-12 items-center justify-center rounded-full border border-line text-[22px] hover:border-lavender">−</button>
-            <span className="display w-12 text-center text-[2.4rem]" aria-live="polite">{size}</span>
-            <button type="button" aria-label="more" onClick={() => setSize(Math.min(12, size + 1))} className="flex h-12 w-12 items-center justify-center rounded-full border border-line text-[22px] hover:border-lavender">+</button>
-            <input type="hidden" name="groupSize" value={size} />
+          <legend className="mono mb-2 text-muted-2">something small, medium or big?</legend>
+          <div className="flex flex-wrap gap-2">
+            {(["small", "medium", "big"] as const).map((v) => (
+              <label key={v} className="cursor-pointer">
+                <input type="radio" name="size" value={v} checked={size === v} onChange={() => setSize(v)} className="peer sr-only" />
+                <span className={chip}>{v}</span>
+              </label>
+            ))}
           </div>
         </fieldset>
         <fieldset className="flex flex-col gap-3">

@@ -540,15 +540,15 @@ export async function addPlace(_prev: FormState, fd: FormData): Promise<FormStat
 
 export type JunoState = { error?: string; pick?: JunoPick };
 
-/** ask juno for a plan: your group, budget, neighborhood and mood. uses your lists and what's popular. */
+/** ask juno for a plan: small, medium or big, budget, neighborhood and mood. uses your lists and what's popular. */
 export async function planWithJuno(_prev: JunoState, fd: FormData): Promise<JunoState> {
   const store = await getStore();
   if (!(await store.me())) return { error: "sign in first." };
-  const groupSize = Math.min(12, Math.max(3, Number(fd.get("groupSize") ?? 4) || 4));
+  const size = fd.get("size") === "big" ? "big" : fd.get("size") === "medium" ? "medium" : "small";
   const budget = (["free", "$", "$$", "$$$"].includes(String(fd.get("budget"))) ? String(fd.get("budget")) : "$$") as JunoAsk["budget"];
   const when = fd.get("when") === "day" ? "day" : "night";
   const ask: JunoAsk = {
-    groupSize, budget, when,
+    size, budget, when,
     neighborhood: cleanName(fd.get("neighborhood")).toLowerCase().slice(0, 40),
     vibe: cleanName(fd.get("vibe")).toLowerCase().slice(0, 40),
     extra: String(fd.get("extra") ?? "").trim().slice(0, 200),

@@ -1,10 +1,10 @@
 import { JunoMascot } from "@/components/app/JunoMascot";
 import { Reveal } from "@/components/Reveal";
 
-const ASK = ["4 of us", "$$", "night", "food", "williamsburg"];
+const ASK = ["small", "$$", "night", "food", "williamsburg"];
 
 const POINTS = [
-  { t: "tell how many of you", b: "then the budget, the neighborhood, a day or a night, and the vibe. that's it." },
+  { t: "tell it the vibe", b: "something small, medium or big. the budget, the neighborhood, a day or a night. that's it." },
   { t: "it uses your lists", b: "save coffee shops, bars, restaurants, parks and hidden gems, or bring them over from tiktok, instagram or your notes. only you see them." },
   { t: "and what your network loves", b: "places that are popular with people one step from you, with the scores from people who were there. never who went." },
 ];
@@ -54,7 +54,7 @@ export function MeetJuno() {
             <span className="mono text-[11px] uppercase tracking-widest text-muted-2">from your lists · a quiet night</span>
             <span className="display text-[2rem] leading-none">le crocodile</span>
             <span className="text-muted">williamsburg · $$$ · thu 7pm</span>
-            <span className="text-[15px] text-bone">it&apos;s on your list, it&apos;s loved in your network, and it fits a slow dinner for four.</span>
+            <span className="text-[15px] text-bone">it&apos;s on your list, it&apos;s loved in your network, and it fits a slow, small dinner.</span>
             <span className="mono mt-1 self-start rounded-full bg-bone px-4 py-2 text-[13px] text-ink">make it a plan</span>
           </article>
           <p className="mono text-[12px] text-lavender-soft">example. juno suggests experiences, never people.</p>
