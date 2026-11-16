@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
 import { demoStore } from "@/lib/app/demo";
-import type { ExperienceSummary, Me, PlanTeaser, MemoryInvite, MemoryView, NewMemory, NewPlan, OrbitState, Prefs, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
+import type { ExperienceSummary, Me, Popular, ProfileEdit, PlanTeaser, MemoryInvite, MemoryView, NewMemory, NewPlan, OrbitState, Prefs, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
 
 /** Everything the app reads and writes. Two implementations: Supabase, or demo data. */
 export interface Store {
@@ -29,14 +29,23 @@ export interface Store {
   rateMemory(id: string, stars: number): Promise<void>;
   /** everything you can see at a place, or of one activity: one weighted score, hidden below 3 people */
   experienceSummary(f: { place?: string; kind?: string }): Promise<ExperienceSummary>;
+  /** places (or activities) by how many experiences happened there between two days */
+  popular(from: string, to: string, by: "place" | "kind"): Promise<Popular[]>;
+  /** "i'm at the door". returns how many have arrived */
+  checkIn(planId: string): Promise<number>;
+  updateProfile(p: ProfileEdit): Promise<void>;
+  uploadAvatar(file: File): Promise<void>;
+  blocked(): Promise<{ id: string; firstName: string }[]>;
+  block(userId: string): Promise<void>;
+  unblock(userId: string): Promise<void>;
+  /** leave orbi: deletes the account */
+  deleteMe(): Promise<void>;
   savePrefs(p: Prefs): Promise<void>;
   keepInOrbit(id: string, target: string): Promise<"picked" | "connected">;
   dropPick(id: string, target: string): Promise<void>;
   createPlan(input: NewPlan): Promise<string>;
   /** the public link page; works signed out */
   teaser(slug: string): Promise<PlanTeaser | null>;
-  /** whose orbit you'd join by saying yes from a link (signed in only) */
-  linkHostName(slug: string): Promise<string | null>;
   /** "i'm in" from a link: connect with the host, then join. returns the plan id */
   joinViaLink(slug: string): Promise<string>;
   cancelPlan(id: string): Promise<void>;
@@ -65,6 +74,8 @@ export function friendly(err: unknown): string {
   if (/not found/.test(msg)) return "this plan isn't available.";
   if (/already happened/.test(msg)) return "pick a day that already happened.";
   if (/who were there can rate/.test(msg)) return "only people who were there can rate it.";
+  if (/opens an hour before/.test(msg)) return "check-in opens an hour before the plan.";
+  if (/plan is over/.test(msg)) return "this plan is over.";
   return "something went wrong. please try again.";
 }
 
@@ -72,28 +83,36 @@ type MemRow = {
   id: string; kind: string; place: string; happened_on: string; note: string | null;
   is_mine: boolean; with_names: string[] | null; waiting: number; invited_by?: string | null; in_it?: boolean | null;
   place_key?: string | null; rating?: number | string | null; ratings?: number | null; my_rating?: number | null;
+  occasion?: string | null; neighborhood?: string | null; with_ids?: string[] | null;
 };
 const toMemory = (r: MemRow): MemoryView => ({
   id: r.id, kind: r.kind, place: r.place, happenedOn: r.happened_on, note: r.note, isMine: r.is_mine,
   withNames: r.with_names ?? [], waiting: r.waiting ?? 0, invitedBy: r.invited_by ?? null, inIt: r.in_it ?? false,
   placeKey: r.place_key ?? r.place.split(",")[0].trim().toLowerCase().replace(/\s+/g, " "),
   rating: r.rating == null ? null : Number(r.rating), ratings: r.ratings ?? null, myRating: r.my_rating ?? null,
+  occasion: r.occasion ?? null, neighborhood: r.neighborhood ?? null, withIds: r.with_ids ?? [],
 });
 
 type TeaserRow = {
   title: string | null; kind: string; topic: string | null; place: string; neighborhood: string | null; note: string | null; starts_at: string;
   lat: number | null; lng: number | null; thumbnail_url: string | null; source_author: string | null; price_level: number | null; cost_note: string | null;
-  going: number; min_people: number; max_people: number; status: PlanStatus; host_name: string | null; is_host: boolean; joined: boolean; connected: boolean;
+  going: number; min_people: number; max_people: number; status: PlanStatus; host_mutuals: number | null; is_host: boolean; joined: boolean; connected: boolean;
 };
 const toTeaser = (r: TeaserRow): PlanTeaser => ({
   title: r.title, kind: r.kind, topic: r.topic, place: r.place, neighborhood: r.neighborhood, note: r.note, startsAt: r.starts_at,
   lat: r.lat, lng: r.lng, thumbnailUrl: r.thumbnail_url, sourceAuthor: r.source_author, priceLevel: r.price_level, costNote: r.cost_note,
-  going: r.going, minPeople: r.min_people, maxPeople: r.max_people, status: r.status, hostName: r.host_name,
+  going: r.going, minPeople: r.min_people, maxPeople: r.max_people, status: r.status, hostMutuals: r.host_mutuals,
   isHost: r.is_host, joined: r.joined, connected: r.connected,
 });
 
 async function supabaseStore(): Promise<Store> {
   const sb = await supabaseServer();
+
+  const avatarUrl = async (path: string | null) => {
+    if (!path) return null;
+    const { data } = await sb.storage.from("avatars").createSignedUrl(path, 60 * 60);
+    return data?.signedUrl ?? null;
+  };
 
   const uid = async () => {
     const { data } = await sb.auth.getUser();
@@ -106,14 +125,15 @@ async function supabaseStore(): Promise<Store> {
     open_spots: number; taken: number; bringing: number | null; topic: string | null; is_host: boolean; joined: boolean; status: PlanStatus;
     title: string | null; share_slug: string | null; source_url: string | null; source_author: string | null; thumbnail_url: string | null;
     lat: number | null; lng: number | null; neighborhood: string | null; price_level: number | null; cost_note: string | null;
-    min_people: number | null; show_host: boolean | null;
+    min_people: number | null; occasion: string | null; host_mutuals: number | null; arrived: number | null; me_checked_in: boolean | null;
   };
   const toView = (r: Row): PlanView => ({
     id: r.id, kind: r.kind, place: r.place, note: r.note, startsAt: r.starts_at, openSpots: r.open_spots,
     taken: r.taken, bringing: r.bringing ?? 0, topic: r.topic ?? null, isHost: r.is_host, joined: r.joined, status: r.status,
     title: r.title ?? null, shareSlug: r.share_slug ?? null, sourceUrl: r.source_url ?? null, sourceAuthor: r.source_author ?? null,
     thumbnailUrl: r.thumbnail_url ?? null, lat: r.lat ?? null, lng: r.lng ?? null, neighborhood: r.neighborhood ?? null,
-    priceLevel: r.price_level ?? null, costNote: r.cost_note ?? null, minPeople: r.min_people ?? 3, showHost: r.show_host ?? false,
+    priceLevel: r.price_level ?? null, costNote: r.cost_note ?? null, minPeople: r.min_people ?? 3,
+    occasion: r.occasion ?? null, hostMutuals: r.host_mutuals ?? null, arrived: r.arrived ?? 0, meCheckedIn: r.me_checked_in ?? false,
   });
 
   const store: Store = {
@@ -121,8 +141,12 @@ async function supabaseStore(): Promise<Store> {
     async me() {
       const { data } = await sb.auth.getUser();
       if (!data.user) return null;
-      const { data: p } = await sb.from("profiles").select("first_name, invite_code").eq("id", data.user.id).maybeSingle();
-      return { id: data.user.id, email: data.user.email ?? null, firstName: p?.first_name ?? null, inviteCode: p?.invite_code ?? null };
+      const { data: p } = await sb.from("profiles").select("first_name, invite_code, photo_path, bio, neighborhood, appear_in_picks, created_at").eq("id", data.user.id).maybeSingle();
+      return {
+        id: data.user.id, email: data.user.email ?? null, firstName: p?.first_name ?? null, inviteCode: p?.invite_code ?? null,
+        photoUrl: await avatarUrl(p?.photo_path ?? null), bio: p?.bio ?? null, neighborhood: p?.neighborhood ?? null,
+        appearInPicks: p?.appear_in_picks ?? true, since: p?.created_at ?? null,
+      };
     },
     async createProfile(firstName) {
       const id = await uid();
@@ -145,9 +169,10 @@ async function supabaseStore(): Promise<Store> {
     async people(id) {
       const { data, error } = await sb.rpc("plan_people", { p: id });
       if (error) throw error;
-      return (data as { user_id: string; first_name: string; is_host: boolean; is_me: boolean }[]).map((r) => ({
-        id: r.user_id, firstName: r.first_name, isHost: r.is_host, isMe: r.is_me,
-      }));
+      const rows = data as { user_id: string; first_name: string; is_host: boolean; is_me: boolean; arrived: boolean; photo_path: string | null }[];
+      return Promise.all(rows.map(async (r) => ({
+        id: r.user_id, firstName: r.first_name, isHost: r.is_host, isMe: r.is_me, arrived: r.arrived, photoUrl: await avatarUrl(r.photo_path),
+      })));
     },
     async groupMutuals(id) {
       const { data, error } = await sb.rpc("plan_group_mutuals", { p: id });
@@ -171,7 +196,7 @@ async function supabaseStore(): Promise<Store> {
       return toMemory((data as MemRow[])[0]);
     },
     async addMemory(m) {
-      const { data, error } = await sb.rpc("add_memory", { k: m.kind, place: m.place, happened: m.happenedOn, note: m.note, tagged: m.tagged });
+      const { data, error } = await sb.rpc("add_memory", { k: m.kind, place: m.place, happened: m.happenedOn, note: m.note, tagged: m.tagged, occ: m.occasion ?? null, hood: m.neighborhood ?? null });
       if (error) throw error;
       return data as string;
     },
@@ -209,6 +234,48 @@ async function supabaseStore(): Promise<Store> {
       const row = (data as { average: number | string | null; ratings: number | null; experiences: number }[] | null)?.[0];
       if (error || !row) return { average: null, ratings: null, experiences: 0 };
       return { average: row.average == null ? null : Number(row.average), ratings: row.ratings, experiences: row.experiences };
+    },
+    async popular(from, to, by) {
+      const { data, error } = await sb.rpc("popular_experiences", { from_day: from, to_day: to, by_what: by });
+      if (error) return [];
+      return (data as { key: string; label: string; kind: string; experiences: number; average: number | string | null; ratings: number | null }[]).map((r) => ({
+        key: r.key, label: r.label, kind: r.kind, experiences: r.experiences, average: r.average == null ? null : Number(r.average), ratings: r.ratings,
+      }));
+    },
+    async checkIn(planId) {
+      const { data, error } = await sb.rpc("check_in", { p: planId });
+      if (error) throw error;
+      return data as number;
+    },
+    async updateProfile(p) {
+      const id = await uid();
+      const { error } = await sb.from("profiles").update({ bio: p.bio || null, neighborhood: p.neighborhood || null, appear_in_picks: p.appearInPicks }).eq("id", id);
+      if (error) throw error;
+    },
+    async uploadAvatar(file) {
+      const id = await uid();
+      const path = `${id}/${crypto.randomUUID()}.jpg`;
+      const { error } = await sb.storage.from("avatars").upload(path, file, { contentType: file.type || "image/jpeg" });
+      if (error) throw error;
+      const { error: e2 } = await sb.from("profiles").update({ photo_path: path }).eq("id", id);
+      if (e2) throw e2;
+    },
+    async blocked() {
+      const { data } = await sb.rpc("my_blocks");
+      return ((data as { user_id: string; first_name: string }[] | null) ?? []).map((r) => ({ id: r.user_id, firstName: r.first_name }));
+    },
+    async block(userId) {
+      const { error } = await sb.rpc("block_person", { target: userId });
+      if (error) throw error;
+    },
+    async unblock(userId) {
+      const { error } = await sb.rpc("unblock_person", { target: userId });
+      if (error) throw error;
+    },
+    async deleteMe() {
+      const { error } = await sb.rpc("delete_me");
+      if (error) throw error;
+      await sb.auth.signOut();
     },
     async prefs() {
       const { data } = await sb.from("preferences").select("kinds, times, areas, topics, group_size").maybeSingle();
@@ -256,7 +323,7 @@ async function supabaseStore(): Promise<Store> {
           topic: input.kind === "networking" ? input.topic ?? null : null,
           title: input.title || null, source_url: input.sourceUrl || null, source_author: input.sourceAuthor || null, thumbnail_url: input.thumbnailUrl || null,
           lat: input.lat ?? null, lng: input.lng ?? null, neighborhood: input.neighborhood || null, price_level: input.priceLevel ?? null,
-          cost_note: input.costNote || null, min_people: input.minPeople ?? 3, show_host: input.showHost ?? false,
+          cost_note: input.costNote || null, min_people: input.minPeople ?? 3, occasion: input.occasion || null,
         })
         .select("id")
         .single();
@@ -267,10 +334,6 @@ async function supabaseStore(): Promise<Store> {
       const { data, error } = await sb.rpc("plan_teaser", { slug });
       if (error || !data?.length) return null;
       return toTeaser((data as TeaserRow[])[0]);
-    },
-    async linkHostName(slug) {
-      const { data } = await sb.rpc("link_host_name", { slug });
-      return (data as string | null) ?? null;
     },
     async joinViaLink(slug) {
       const { data, error } = await sb.rpc("join_via_link", { slug });

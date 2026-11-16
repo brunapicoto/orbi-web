@@ -76,7 +76,7 @@ export async function createPlan(_prev: FormState, fd: FormData): Promise<FormSt
   const sourceUrl = String(fd.get("sourceUrl") ?? "").trim();
   const sourceAuthor = cleanName(fd.get("sourceAuthor"));
   const thumbnailUrl = String(fd.get("thumbnailUrl") ?? "").trim();
-  const showHost = fd.get("showHost") === "on";
+  const occasion = cleanName(fd.get("occasion")).toLowerCase().slice(0, 40);
 
   const fieldErrors: Record<string, string> = {};
   if (!KIND_IDS.includes(kind)) fieldErrors.kind = "pick what kind of plan it is.";
@@ -109,7 +109,7 @@ export async function createPlan(_prev: FormState, fd: FormData): Promise<FormSt
       title: title || null, minPeople, priceLevel, costNote: costNote || null, neighborhood: neighborhood.slice(0, 40) || null, ...pin,
       sourceUrl: fromLink, sourceAuthor: fromLink ? sourceAuthor.slice(0, 60) || null : null,
       thumbnailUrl: fromLink && thumbnailUrl.startsWith("https://") && thumbnailUrl.length <= 1000 ? thumbnailUrl : null,
-      showHost,
+      occasion: occasion || null,
     });
   } catch (e) {
     return { error: friendly(e) };
@@ -301,7 +301,9 @@ export async function addMemory(_prev: FormState, fd: FormData): Promise<FormSta
   const store = await getStore();
   let id: string;
   try {
-    id = await store.addMemory({ kind, place, happenedOn, note, tagged });
+    const occasion = cleanName(fd.get("occasion")).toLowerCase().slice(0, 40) || null;
+    const neighborhood = cleanName(fd.get("neighborhood")).toLowerCase().slice(0, 40) || null;
+    id = await store.addMemory({ kind, place, happenedOn, note, tagged, occasion, neighborhood });
     if (photo instanceof File && photo.size > 0) await store.uploadMemoryPhoto(id, photo);
   } catch (e) {
     return { error: friendly(e) };
@@ -310,6 +312,90 @@ export async function addMemory(_prev: FormState, fd: FormData): Promise<FormSta
   // more photos to send: the page uploads them one by one, then opens the memory
   if (fd.get("stay") === "1") return { ok: true, id };
   redirect(`/app/memories/${id}?added=1`);
+}
+
+// ---------------------------------------------------------------- arriving, profile, privacy
+
+/** "i'm at the door": after this, you see who's there */
+export async function checkIn(planId: string): Promise<FormState> {
+  const store = await getStore();
+  try {
+    await store.checkIn(planId);
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath(`/app/plan/${planId}`);
+  revalidatePath("/app");
+  return { ok: true };
+}
+
+export async function saveProfile(_prev: FormState, fd: FormData): Promise<FormState> {
+  const bio = String(fd.get("bio") ?? "").trim().replace(/\s+/g, " ");
+  const neighborhood = cleanName(fd.get("neighborhood")).toLowerCase();
+  if (bio.length > 160) return { fieldErrors: { bio: "keep it under 160 characters." } };
+  if (neighborhood.length > 40) return { fieldErrors: { neighborhood: "keep it under 40 characters." } };
+  const store = await getStore();
+  const me = await store.me();
+  try {
+    await store.updateProfile({ bio, neighborhood, appearInPicks: me?.appearInPicks ?? true });
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath("/app/you");
+  return { ok: true };
+}
+
+export async function setAppearInPicks(on: boolean): Promise<FormState> {
+  const store = await getStore();
+  const me = await store.me();
+  if (!me) return { error: "sign in first." };
+  try {
+    await store.updateProfile({ bio: me.bio ?? "", neighborhood: me.neighborhood ?? "", appearInPicks: on });
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath("/app/settings");
+  return { ok: true };
+}
+
+export async function uploadAvatar(fd: FormData): Promise<FormState> {
+  const file = fd.get("photo");
+  if (!(file instanceof File) || file.size === 0) return { error: "choose a photo first." };
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return { error: "use a jpg, png or webp photo." };
+  if (file.size > 4 * 1024 * 1024) return { error: "that photo is too big." };
+  const store = await getStore();
+  try {
+    await store.uploadAvatar(file);
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath("/app/you");
+  return { ok: true };
+}
+
+/** quietly: their plans and memories disappear for you, yours for them. they are never told. */
+export async function blockPerson(userId: string): Promise<FormState> {
+  const store = await getStore();
+  try {
+    await store.block(userId);
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath("/app", "layout");
+  return { ok: true };
+}
+
+export async function unblockPerson(userId: string): Promise<FormState> {
+  const store = await getStore();
+  await store.unblock(userId);
+  revalidatePath("/app/settings");
+  return { ok: true };
+}
+
+export async function leaveOrbi() {
+  const store = await getStore();
+  await store.deleteMe();
+  redirect(store.demo ? "/app" : "/");
 }
 
 /** decline, accept, or accept and blur yourself in the photos */

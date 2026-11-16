@@ -40,6 +40,18 @@ create table if not exists public.plans (
   created_at timestamptz not null default now()
 );
 
+-- profile extras: a photo (only your orbit sees it), a line about you, your neighborhood,
+-- and whether you show up in "keep in orbit" after a plan
+alter table public.profiles add column if not exists photo_path text;
+alter table public.profiles add column if not exists bio text;
+alter table public.profiles add column if not exists neighborhood text;
+alter table public.profiles add column if not exists appear_in_picks boolean not null default true;
+alter table public.profiles drop constraint if exists profiles_extras_check;
+alter table public.profiles add constraint profiles_extras_check check (
+  (bio is null or char_length(bio) <= 160) and (neighborhood is null or char_length(neighborhood) <= 40)
+  and (photo_path is null or char_length(photo_path) <= 200)
+);
+
 -- group size rules, written so this file can run again on an existing project:
 -- the host + the friends they bring + the open spots must be 3 or more
 alter table public.plans add column if not exists bringing int not null default 0;
@@ -57,7 +69,8 @@ alter table public.plans add constraint plans_kind_check check (kind in ('dinner
 alter table public.plans drop constraint if exists plans_topic_check;
 alter table public.plans add constraint plans_topic_check check (topic is null or (kind = 'networking' and topic in ('finance', 'consulting', 'tech', 'startups', 'marketing', 'law', 'health', 'creative', 'policy', 'school')));
 -- plans made from a link (a tiktok or reel), with a place on the map and a minimum to happen.
--- share_slug is the public link: /p/<slug>. it shows a teaser only, never the host unless show_host.
+-- share_slug is the public link: /p/<slug>. it shows a teaser only, never the host.
+-- (show_host is no longer used: the host is always anonymous)
 alter table public.plans add column if not exists title text;
 alter table public.plans add column if not exists share_slug text not null default substr(md5(gen_random_uuid()::text), 1, 10);
 alter table public.plans add column if not exists source_url text;
@@ -70,6 +83,9 @@ alter table public.plans add column if not exists price_level int;
 alter table public.plans add column if not exists cost_note text;
 alter table public.plans add column if not exists min_people int not null default 3;
 alter table public.plans add column if not exists show_host boolean not null default false;
+alter table public.plans add column if not exists occasion text;
+alter table public.plans drop constraint if exists plans_occasion_check;
+alter table public.plans add constraint plans_occasion_check check (occasion is null or char_length(btrim(occasion)) between 1 and 40);
 alter table public.plans drop constraint if exists plans_link_fields;
 alter table public.plans add constraint plans_link_fields check (
   (title is null or char_length(btrim(title)) between 1 and 80)
@@ -150,6 +166,36 @@ as $$
 $$;
 
 -- friends x and y have in common (internal, not callable by the app)
+-- arriving: everyone in a plan checks in at the door. names show only after you do.
+create table if not exists public.plan_checkins (
+  plan_id uuid not null references public.plans (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  checked_at timestamptz not null default now(),
+  primary key (plan_id, user_id)
+);
+alter table public.plan_checkins enable row level security;
+revoke all on public.plan_checkins from anon, authenticated;
+
+create or replace function public.checked_in(p uuid, u uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select exists (select 1 from plan_checkins where plan_id = p and user_id = u);
+$$;
+
+-- plans that already happened before check-ins existed: count everyone who was in them as arrived
+do $$
+begin
+  if not exists (select 1 from public.plan_checkins limit 1) then
+    insert into public.plan_checkins (plan_id, user_id, checked_at)
+    select p.id, m.uid, p.starts_at
+    from public.plans p
+    cross join lateral (select p.host_id as uid union select r.user_id from public.rsvps r where r.plan_id = p.id) m
+    where p.starts_at <= now()
+    on conflict do nothing;
+  end if;
+end $$;
+
 create or replace function public.mutual_count(x uuid, y uuid)
 returns int
 language sql stable security definer set search_path = public
@@ -252,7 +298,7 @@ create policy photos_insert on public.plan_photos for insert to authenticated
   with check (
     uploaded_by = auth.uid()
     and public.is_in_plan(plan_id, auth.uid())
-    and public.plan_started(plan_id)
+    and public.checked_in(plan_id, auth.uid())
   );
 
 revoke all on public.profiles, public.connections, public.plans, public.rsvps, public.plan_photos from anon;
@@ -261,6 +307,25 @@ grant select on public.connections to authenticated;
 grant select, insert, delete on public.plans to authenticated;
 grant select on public.rsvps to authenticated;
 grant select, insert on public.plan_photos to authenticated;
+
+-- people you'd rather not see: their plans and memories quietly disappear for you, and yours for them.
+-- blocking also ends the connection. they are never told.
+create table if not exists public.blocks (
+  blocker uuid not null references public.profiles (id) on delete cascade,
+  blocked uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (blocker, blocked),
+  check (blocker <> blocked)
+);
+alter table public.blocks enable row level security;
+revoke all on public.blocks from anon, authenticated;
+
+create or replace function public.is_blocked(x uuid, y uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select exists (select 1 from blocks where (blocker = x and blocked = y) or (blocker = y and blocked = x));
+$$;
 
 -- ---------------------------------------------------------------- functions the app calls
 
@@ -273,7 +338,7 @@ returns table (
   open_spots int, taken int, bringing int, topic text, is_host boolean, joined boolean, status text,
   title text, share_slug text, source_url text, source_author text, thumbnail_url text,
   lat double precision, lng double precision, neighborhood text, price_level int, cost_note text,
-  min_people int, show_host boolean
+  min_people int, occasion text, host_mutuals int, arrived int, me_checked_in boolean
 )
 language sql stable security definer set search_path = public
 as $$
@@ -285,7 +350,11 @@ as $$
          exists (select 1 from rsvps r where r.plan_id = p.id and r.user_id = auth.uid()) as joined,
          plan_status(p.starts_at, plan_count(p.id), p.min_people) as status,
          p.title, p.share_slug, p.source_url, p.source_author, p.thumbnail_url,
-         p.lat, p.lng, p.neighborhood, p.price_level, p.cost_note, p.min_people, p.show_host
+         p.lat, p.lng, p.neighborhood, p.price_level, p.cost_note, p.min_people, p.occasion,
+         -- "someone with 12 mutuals is hosting": how many friends you share with the host, never who
+         case when p.host_id <> auth.uid() then mutual_count(p.host_id, auth.uid()) end,
+         (select count(*)::int from plan_checkins c where c.plan_id = p.id),
+         checked_in(p.id, auth.uid())
   from plans p
   where auth.uid() is not null
     and (
@@ -294,6 +363,7 @@ as $$
       or (are_connected(p.host_id, auth.uid()) and p.starts_at > now())
     )
     and plan_status(p.starts_at, plan_count(p.id), p.min_people) <> 'off'
+    and (p.host_id = auth.uid() or not is_blocked(p.host_id, auth.uid()))
   order by p.starts_at;
 $$;
 
@@ -327,19 +397,39 @@ as $$
     and exists (select 1 from plans where id = p and starts_at > now());
 $$;
 
--- the reveal: names, only for people in the plan, only from start time, only if it reached 3
--- the reveal: names, only for people in the plan, only from start time, only if it reached 3
+-- "i'm at the door": from an hour before until the plan is over, once it has enough people
+create or replace function public.check_in(p uuid)
+returns int
+language plpgsql security definer set search_path = public
+as $$
+declare
+  me uuid := auth.uid();
+  pl plans%rowtype;
+begin
+  select * into pl from plans where id = p;
+  if not found or not is_in_plan(p, me) then raise exception 'plan not found'; end if;
+  if now() < pl.starts_at - interval '1 hour' then raise exception 'check-in opens an hour before'; end if;
+  if now() > pl.starts_at + interval '6 hours' then raise exception 'this plan is over'; end if;
+  if plan_count(p) + 1 < pl.min_people then raise exception 'plan not found'; end if;
+  insert into plan_checkins (plan_id, user_id) values (p, me) on conflict do nothing;
+  return (select count(*)::int from plan_checkins where plan_id = p);
+end;
+$$;
+
+-- the reveal: names, only for people in the plan, only after YOU checked in, only if it reached its minimum.
+-- photos only of people in your orbit (and yourself); everyone else shows as an initial.
 drop function if exists public.plan_people(uuid);
 create function public.plan_people(p uuid)
-returns table (user_id uuid, first_name text, is_host boolean, is_me boolean)
+returns table (user_id uuid, first_name text, is_host boolean, is_me boolean, arrived boolean, photo_path text)
 language sql stable security definer set search_path = public
 as $$
   with pl as (select * from plans where id = p)
-  select pr.id, pr.first_name, pr.id = pl.host_id, pr.id = auth.uid()
+  select pr.id, pr.first_name, pr.id = pl.host_id, pr.id = auth.uid(), checked_in(p, pr.id),
+         case when pr.id = auth.uid() or are_connected(pr.id, auth.uid()) then pr.photo_path end
   from pl
   join profiles pr on pr.id = pl.host_id or pr.id in (select user_id from rsvps where plan_id = p)
   where is_in_plan(p, auth.uid())
-    and pl.starts_at <= now()
+    and checked_in(p, auth.uid())
     and plan_count(p) + 1 >= pl.min_people
   order by (pr.id = pl.host_id) desc, pr.first_name;
 $$;
@@ -369,7 +459,7 @@ as $$
   join their_friends t on t.id = f.id
   where f.id not in (select id from members)
     and is_in_plan(p, auth.uid())
-    and (select starts_at from pl) <= now()
+    and checked_in(p, auth.uid())
     and plan_count(p) + 1 >= (select min_people from pl);
 $$;
 
@@ -399,8 +489,10 @@ declare
   me uuid := auth.uid();
 begin
   if me is null then raise exception 'not signed in'; end if;
-  if target = me or not plan_started(p) or plan_count(p) < 2
-     or not is_in_plan(p, me) or not is_in_plan(p, target) then
+  if target = me or plan_count(p) < 2
+     or not is_in_plan(p, me) or not is_in_plan(p, target)
+     or not checked_in(p, me) or not checked_in(p, target)
+     or not coalesce((select appear_in_picks from profiles where id = target), true) then
     raise exception 'plan not found';
   end if;
   if are_connected(me, target) then return 'connected'; end if;
@@ -433,6 +525,12 @@ create table if not exists public.memories (
   created_at timestamptz not null default now()
 );
 
+alter table public.memories add column if not exists occasion text;
+alter table public.memories add column if not exists neighborhood text;
+alter table public.memories drop constraint if exists memories_extras_check;
+alter table public.memories add constraint memories_extras_check check (
+  (occasion is null or char_length(btrim(occasion)) between 1 and 40) and (neighborhood is null or char_length(btrim(neighborhood)) between 1 and 40)
+);
 alter table public.memories drop constraint if exists memories_kind_check;
 -- the place, as a key to group memories at the same spot: "Pinch Chinese, SoHo" and "pinch chinese" match.
 -- (the part before the first comma, lowercase, single spaces)
@@ -515,7 +613,8 @@ $$;
 revoke all on function public.replace_memory_photo(uuid, text) from public, anon;
 grant execute on function public.replace_memory_photo(uuid, text) to authenticated;
 
-create or replace function public.add_memory(k text, place text, happened date, note text, tagged uuid[])
+drop function if exists public.add_memory(text, text, date, text, uuid[]);
+create or replace function public.add_memory(k text, place text, happened date, note text, tagged uuid[], occ text default null, hood text default null)
 returns uuid
 language plpgsql security definer set search_path = public
 as $$
@@ -526,8 +625,8 @@ declare
 begin
   if me is null then raise exception 'not signed in'; end if;
   if happened > current_date then raise exception 'a memory is something that already happened'; end if;
-  insert into memories (created_by, kind, place, happened_on, note)
-  values (me, k, btrim(place), happened, nullif(btrim(note), '')) returning id into mid;
+  insert into memories (created_by, kind, place, happened_on, note, occasion, neighborhood)
+  values (me, k, btrim(place), happened, nullif(btrim(note), ''), nullif(btrim(lower(occ)), ''), nullif(btrim(lower(hood)), '')) returning id into mid;
   foreach t in array coalesce(tagged, '{}') loop
     if t <> me and are_connected(me, t) then
       insert into memory_people (memory_id, user_id) values (mid, t) on conflict do nothing;
@@ -629,10 +728,38 @@ as $$
   from rating_summary(array(select id from shown)) s;
 $$;
 
+-- what's popular in your network between two dates: places (or activities) by how many experiences
+-- happened there, each with its own score (hidden below 3 people). experiences, never people.
+create or replace function public.popular_experiences(from_day date, to_day date, by_what text default 'place')
+returns table (key text, label text, kind text, experiences int, average numeric, ratings int)
+language sql stable security definer set search_path = public
+as $$
+  with shown as (
+    select m.id, m.place_key, split_part(m.place, ',', 1) as place_name, m.kind
+    from memories m
+    where m.happened_on between from_day and to_day
+      and to_day - from_day <= 366
+      and can_view_memory(m.id, auth.uid())
+      and not exists (select 1 from memory_people mp where mp.memory_id = m.id and mp.user_id = auth.uid() and mp.status = 'pending')
+      and (m.created_by = auth.uid() or not is_blocked(m.created_by, auth.uid()))
+  ),
+  grouped as (
+    select case when by_what = 'kind' then kind else place_key end as key,
+           min(case when by_what = 'kind' then kind else place_name end) as label,
+           mode() within group (order by kind) as kind,
+           array_agg(id) as ids
+    from shown group by 1
+  )
+  select g.key, btrim(g.label), g.kind, cardinality(g.ids), s.average, s.ratings
+  from grouped g cross join lateral rating_summary(g.ids) s
+  order by cardinality(g.ids) desc, s.average desc nulls last, g.label
+  limit 30;
+$$;
+
 revoke all on function public.rate_memory(uuid, int), public.my_memory_rating(uuid), public.rating_summary(uuid[]),
-  public.memory_rating(uuid), public.experience_summary(text, text) from public, anon, authenticated;
+  public.memory_rating(uuid), public.experience_summary(text, text), public.popular_experiences(date, date, text) from public, anon, authenticated;
 grant execute on function public.rate_memory(uuid, int), public.my_memory_rating(uuid), public.memory_rating(uuid),
-  public.experience_summary(text, text) to authenticated;
+  public.experience_summary(text, text), public.popular_experiences(date, date, text) to authenticated;
 
 -- memories you can see: yours, ones you accepted, and ones from your network (view only).
 -- names are only of people who accepted. a memory waiting for your answer shows up as an invite instead.
@@ -641,7 +768,8 @@ drop function if exists public.my_memories();
 create function public.my_memories()
 returns table (
   id uuid, kind text, place text, happened_on date, note text, is_mine boolean, with_names text[], waiting int,
-  in_it boolean, place_key text, rating numeric, ratings int, my_rating int
+  in_it boolean, place_key text, rating numeric, ratings int, my_rating int,
+  occasion text, neighborhood text, with_ids uuid[]
 )
 language sql stable security definer set search_path = public
 as $$
@@ -659,9 +787,18 @@ as $$
          m.place_key,
          (select s.average from rating_summary(array[m.id]) s),
          (select s.ratings from rating_summary(array[m.id]) s),
-         (select value from memory_ratings r where r.memory_id = m.id and r.user_id = auth.uid())
+         (select value from memory_ratings r where r.memory_id = m.id and r.user_id = auth.uid()),
+         m.occasion, m.neighborhood,
+         -- ids in the same order as with_names, so the app can filter "with naomi" (people have no rating)
+         array(
+           select pr.id from profiles pr
+           where (pr.id = m.created_by or pr.id in (select user_id from memory_people where memory_id = m.id and status = 'accepted'))
+             and pr.id <> auth.uid()
+           order by pr.first_name
+         )
   from memories m
   where can_view_memory(m.id, auth.uid())
+    and (m.created_by = auth.uid() or not is_blocked(m.created_by, auth.uid()))
     and not exists (select 1 from memory_people mp where mp.memory_id = m.id and mp.user_id = auth.uid() and mp.status = 'pending')
   order by m.happened_on desc;
 $$;
@@ -683,24 +820,25 @@ $$;
 create function public.memory_detail(m uuid)
 returns table (
   id uuid, kind text, place text, happened_on date, note text, is_mine boolean, with_names text[], waiting int, invited_by text,
-  in_it boolean, place_key text, rating numeric, ratings int, my_rating int
+  in_it boolean, place_key text, rating numeric, ratings int, my_rating int,
+  occasion text, neighborhood text, with_ids uuid[]
 )
 language sql stable security definer set search_path = public
 as $$
-  select i.id, i.kind, i.place, i.happened_on, null, false, '{}'::text[], 0, i.from_name, false, null::text, null::numeric, null::int, null::int
+  select i.id, i.kind, i.place, i.happened_on, null, false, '{}'::text[], 0, i.from_name, false, null::text, null::numeric, null::int, null::int, null::text, null::text, '{}'::uuid[]
   from memory_invites() i where i.id = m
   union all
   select mm.id, mm.kind, mm.place, mm.happened_on, mm.note, mm.is_mine, mm.with_names, mm.waiting, null::text, mm.in_it,
-         mm.place_key, mm.rating, mm.ratings, mm.my_rating
+         mm.place_key, mm.rating, mm.ratings, mm.my_rating, mm.occasion, mm.neighborhood, mm.with_ids
   from my_memories() mm where mm.id = m;
 $$;
 
 revoke all on function public.can_view_memory(uuid, uuid) from public, anon;
 grant execute on function public.can_view_memory(uuid, uuid) to authenticated;
 
-revoke all on function public.can_see_memory(uuid, uuid), public.add_memory(text, text, date, text, uuid[]),
+revoke all on function public.can_see_memory(uuid, uuid), public.add_memory(text, text, date, text, uuid[], text, text),
   public.answer_memory(uuid, boolean), public.my_memories(), public.memory_invites(), public.memory_detail(uuid) from public, anon;
-grant execute on function public.add_memory(text, text, date, text, uuid[]), public.answer_memory(uuid, boolean),
+grant execute on function public.add_memory(text, text, date, text, uuid[], text, text), public.answer_memory(uuid, boolean),
   public.my_memories(), public.memory_invites(), public.memory_detail(uuid), public.can_see_memory(uuid, uuid) to authenticated;
 
 -- ---------------------------------------------------------------- what you're into (private)
@@ -793,7 +931,7 @@ returns table (
   title text, kind text, topic text, place text, neighborhood text, note text, starts_at timestamptz,
   lat double precision, lng double precision, thumbnail_url text, source_author text,
   price_level int, cost_note text, going int, min_people int, max_people int, status text,
-  host_name text, is_host boolean, joined boolean, connected boolean
+  host_mutuals int, is_host boolean, joined boolean, connected boolean
 )
 language sql stable security definer set search_path = public
 as $$
@@ -804,7 +942,7 @@ as $$
          p.min_people,
          1 + p.bringing + p.open_spots as max_people,
          plan_status(p.starts_at, plan_count(p.id), p.min_people) as status,
-         case when p.show_host then (select first_name from profiles where id = p.host_id) end as host_name,
+         case when auth.uid() is not null and p.host_id <> auth.uid() then mutual_count(p.host_id, auth.uid()) end as host_mutuals,
          coalesce(p.host_id = auth.uid(), false) as is_host,
          coalesce(exists (select 1 from rsvps r where r.plan_id = p.id and r.user_id = auth.uid()), false) as joined,
          coalesce(auth.uid() is not null and are_connected(p.host_id, auth.uid()), false) as connected
@@ -837,19 +975,13 @@ begin
 end;
 $$;
 
--- who you'd connect with by joining from a link (shown before you say yes). signed-in only.
-create or replace function public.link_host_name(slug text)
-returns text
-language sql stable security definer set search_path = public
-as $$
-  select pr.first_name from plans p join profiles pr on pr.id = p.host_id
-  where p.share_slug = btrim(slug) and auth.uid() is not null and p.starts_at > now();
-$$;
+-- the host stays anonymous on the link too: no function gives their name before the reveal.
+drop function if exists public.link_host_name(text);
 
-revoke all on function public.plan_teaser(text), public.join_via_link(text), public.link_host_name(text),
+revoke all on function public.plan_teaser(text), public.join_via_link(text),
   public.plan_status(timestamptz, int, int) from public;
 grant execute on function public.plan_teaser(text) to anon, authenticated;
-grant execute on function public.join_via_link(text), public.link_host_name(text) to authenticated;
+grant execute on function public.join_via_link(text) to authenticated;
 
 revoke all on function public.mutual_count(uuid, uuid), public.plan_signal(uuid), public.plan_group_mutuals(uuid) from public, anon, authenticated;
 grant execute on function public.plan_signal(uuid), public.plan_group_mutuals(uuid) to authenticated;
@@ -884,11 +1016,11 @@ create policy "plan photos upload" on storage.objects for insert to authenticate
   with check (
     bucket_id = 'plan-photos'
     and public.is_in_plan(((storage.foldername(name))[1])::uuid, auth.uid())
-    and public.plan_started(((storage.foldername(name))[1])::uuid)
+    and public.checked_in(((storage.foldername(name))[1])::uuid, auth.uid())
   );
 
 -- used inside the row level security policies above, so the signed-in role needs to call them
-grant execute on function public.is_in_plan(uuid, uuid), public.are_connected(uuid, uuid), public.plan_started(uuid) to authenticated;
+grant execute on function public.is_in_plan(uuid, uuid), public.are_connected(uuid, uuid), public.plan_started(uuid), public.checked_in(uuid, uuid) to authenticated;
 
 -- photos for memories you added: private bucket, files at <memory_id>/<file>
 insert into storage.buckets (id, name, public)
@@ -907,3 +1039,70 @@ create policy "memory photos read" on storage.objects for select to authenticate
 drop policy if exists "memory photos upload" on storage.objects;
 create policy "memory photos upload" on storage.objects for insert to authenticated
   with check (bucket_id = 'memory-photos' and public.can_see_memory(((storage.foldername(name))[1])::uuid, auth.uid()));
+
+
+-- ---------------------------------------------------------------- blocking, your photo, leaving
+create or replace function public.block_person(target uuid)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  me uuid := auth.uid();
+begin
+  if me is null or target is null or target = me then raise exception 'not found'; end if;
+  if not exists (select 1 from profiles where id = target) then raise exception 'not found'; end if;
+  insert into blocks (blocker, blocked) values (me, target) on conflict do nothing;
+  delete from connections where user_a = least(me, target) and user_b = greatest(me, target);
+  delete from orbit_picks where (picker = me and picked = target) or (picker = target and picked = me);
+end;
+$$;
+
+create or replace function public.unblock_person(target uuid)
+returns void
+language sql security definer set search_path = public
+as $$
+  delete from blocks where blocker = auth.uid() and blocked = target;
+$$;
+
+-- the people you blocked, by first name (only you see this list)
+create or replace function public.my_blocks()
+returns table (user_id uuid, first_name text)
+language sql stable security definer set search_path = public
+as $$
+  select pr.id, pr.first_name from blocks b join profiles pr on pr.id = b.blocked
+  where b.blocker = auth.uid() order by b.created_at desc;
+$$;
+
+-- leaving orbi: deletes your account and everything that is yours
+create or replace function public.delete_me()
+returns void
+language plpgsql security definer set search_path = public, auth
+as $$
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  delete from auth.users where id = auth.uid();
+end;
+$$;
+
+revoke all on function public.block_person(uuid), public.unblock_person(uuid), public.my_blocks(), public.delete_me(),
+  public.check_in(uuid), public.is_blocked(uuid, uuid), public.checked_in(uuid, uuid) from public, anon;
+grant execute on function public.block_person(uuid), public.unblock_person(uuid), public.my_blocks(), public.delete_me(),
+  public.check_in(uuid), public.checked_in(uuid, uuid) to authenticated;
+
+-- profile photos: private bucket, files at <user_id>/<file>. you, and the people in your orbit, see them.
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', false)
+on conflict (id) do nothing;
+
+drop policy if exists "avatars read" on storage.objects;
+create policy "avatars read" on storage.objects for select to authenticated
+  using (
+    bucket_id = 'avatars'
+    and (
+      (storage.foldername(name))[1] = auth.uid()::text
+      or public.are_connected(((storage.foldername(name))[1])::uuid, auth.uid())
+    )
+  );
+drop policy if exists "avatars upload" on storage.objects;
+create policy "avatars upload" on storage.objects for insert to authenticated
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);

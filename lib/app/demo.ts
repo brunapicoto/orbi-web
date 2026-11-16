@@ -1,16 +1,17 @@
 import "server-only";
 import type { Store } from "@/lib/app/store";
-import type { ExperienceSummary, NewPlan, PlanStatus, PlanTeaser, PlanView } from "@/lib/app/types";
+import type { ExperienceSummary, NewPlan, PlanStatus, PlanTeaser, PlanView, Popular } from "@/lib/app/types";
 
 /**
  * Demo data, used only when Supabase keys are not set. Lives in server memory,
  * resets on restart, and follows the same rules as supabase/app.sql so the
  * preview behaves like the real thing. Everyone here is an example.
  */
-type DemoPlan = NewPlan & { id: string; hostId: string; rsvps: string[]; photos: { id: string; url: string }[]; shareSlug?: string };
+type DemoPlan = NewPlan & { id: string; hostId: string; rsvps: string[]; photos: { id: string; url: string }[]; shareSlug?: string; checkins?: string[] };
 
 type DemoState = {
-  me: { id: string; firstName: string | null; inviteCode: string };
+  me: { id: string; firstName: string | null; inviteCode: string; photoUrl: string | null; bio: string | null; neighborhood: string | null; appearInPicks: boolean; since: string };
+  blocked: string[];
   people: Record<string, string>;
   connections: string[];
   mutualsWithMe: Record<string, number>;
@@ -33,7 +34,8 @@ const nyAt = (days: number, hour: number) => {
 
 function seed(): DemoState {
   return {
-    me: { id: ME, firstName: "alex", inviteCode: "demo4orbi" },
+    me: { id: ME, firstName: "alex", inviteCode: "demo4orbi", photoUrl: null, bio: "always up for a wednesday dinner. will travel for handmade pasta.", neighborhood: "carroll gardens", appearInPicks: true, since: new Date(Date.now() - 150 * 86400_000).toISOString() },
+    blocked: [],
     people: { lena: "Lena", marcus: "Marcus", iris: "Iris", theo: "Theo", sofia: "Sofia", naomi: "Naomi", eva: "Eva" },
     connections: ["lena", "marcus", "iris", "theo", "sofia", "naomi"],
     // friends each person has in common with you (example numbers)
@@ -53,21 +55,21 @@ function seed(): DemoState {
     prefs: { kinds: ["run", "gallery", "sauna"], times: ["weekend-morning", "weekend-afternoon"], areas: ["brooklyn"], topics: ["finance"], groupSize: "small" },
     plans: [
       // happening now: the reveal
-      { id: "p-dinner", hostId: "lena", kind: "dinner", place: "Estela, Nolita", note: "late dinner, I've had this one saved for months.", startsAt: hours(-0.3), openSpots: 3, bringing: 0, rsvps: [ME, "theo", "naomi"], lat: 40.7212, lng: -73.9952, neighborhood: "nolita", priceLevel: 3, photos: [] },
+      { id: "p-dinner", hostId: "lena", checkins: ["lena", "theo"], occasion: "after-work", kind: "dinner", place: "Estela, Nolita", note: "late dinner, I've had this one saved for months.", startsAt: hours(-0.3), openSpots: 3, bringing: 0, rsvps: [ME, "theo", "naomi"], lat: 40.7212, lng: -73.9952, neighborhood: "nolita", priceLevel: 3, photos: [] },
       // you're in, filling up
-      { id: "p-run", hostId: "marcus", kind: "run", place: "East River loop", note: "easy 5k pace. coffee after.", startsAt: nyAt(3, 8), openSpots: 4, bringing: 0, rsvps: [ME, "iris"], lat: 40.7108, lng: -73.9772, neighborhood: "lower east side", priceLevel: 0, photos: [] },
+      { id: "p-run", hostId: "marcus", occasion: "morning run club", kind: "run", place: "East River loop", note: "easy 5k pace. coffee after.", startsAt: nyAt(3, 8), openSpots: 4, bringing: 0, rsvps: [ME, "iris"], lat: 40.7108, lng: -73.9772, neighborhood: "lower east side", priceLevel: 0, photos: [] },
       // open to you
       { id: "p-paint", hostId: "iris", kind: "painting", place: "Brooklyn Brush, Williamsburg", note: "", startsAt: nyAt(2, 19), openSpots: 4, bringing: 0, rsvps: ["theo", "sofia"], lat: 40.7181, lng: -73.9578, neighborhood: "williamsburg", priceLevel: 2, photos: [] },
-      { id: "p-supper", hostId: "sofia", kind: "dinner", place: "Supper club, Bed-Stuy", note: "long table, family style. bring nothing.", startsAt: nyAt(5, 20), openSpots: 6, bringing: 0, rsvps: ["lena", "marcus", "naomi", "iris"], lat: 40.6872, lng: -73.9418, neighborhood: "bed-stuy", priceLevel: 2, photos: [] },
+      { id: "p-supper", hostId: "sofia", occasion: "no plans, no agenda", kind: "dinner", place: "Supper club, Bed-Stuy", note: "long table, family style. bring nothing.", startsAt: nyAt(5, 20), openSpots: 6, bringing: 0, rsvps: ["lena", "marcus", "naomi", "iris"], lat: 40.6872, lng: -73.9418, neighborhood: "bed-stuy", priceLevel: 2, photos: [] },
       { id: "p-net", hostId: "marcus", kind: "networking", topic: "finance", place: "Bryant Park Grill, Midtown", note: "breakfast before the markets open. buy-side, banks, anyone curious.", startsAt: nyAt(2, 8), openSpots: 4, bringing: 0, rsvps: ["sofia", "lena"], lat: 40.7536, lng: -73.9832, neighborhood: "midtown", priceLevel: 1, photos: [] },
       { id: "p-sauna", hostId: "theo", kind: "sauna", place: "Bathhouse, Flatiron", note: "cold plunge is optional. mostly.", startsAt: nyAt(4, 17), openSpots: 3, bringing: 0, rsvps: [], lat: 40.7411, lng: -73.9897, neighborhood: "flatiron", priceLevel: 2, photos: [] },
       { id: "p-gallery", hostId: "sofia", kind: "gallery", place: "Chelsea, 24th st openings", note: "bringing my roommate, she knows everyone at these.", startsAt: nyAt(3, 18), openSpots: 3, bringing: 1, rsvps: ["naomi"], lat: 40.7479, lng: -74.0047, neighborhood: "chelsea", priceLevel: 0, photos: [] },
       // made from links, around manhattan and brooklyn (the map)
-      { id: "p-pasta", hostId: "lena", kind: "dinner", title: "pasta bar in the west village", place: "Via Carota, Grove St", neighborhood: "west village", lat: 40.7331, lng: -74.0037, priceLevel: 2, costNote: "about $45 each", sourceUrl: "https://www.tiktok.com/@pastagirl.nyc/video/1", sourceAuthor: "@pastagirl.nyc", note: "saw this and couldn't stop thinking about the cacio e pepe.", startsAt: nyAt(2, 20), openSpots: 3, bringing: 0, minPeople: 4, rsvps: ["theo", "naomi"], photos: [], shareSlug: "pasta-demo" },
+      { id: "p-pasta", hostId: "lena", occasion: "something to celebrate", kind: "dinner", title: "pasta bar in the west village", place: "Via Carota, Grove St", neighborhood: "west village", lat: 40.7331, lng: -74.0037, priceLevel: 2, costNote: "about $45 each", sourceUrl: "https://www.tiktok.com/@pastagirl.nyc/video/1", sourceAuthor: "@pastagirl.nyc", note: "saw this and couldn't stop thinking about the cacio e pepe.", startsAt: nyAt(2, 20), openSpots: 3, bringing: 0, minPeople: 4, rsvps: ["theo", "naomi"], photos: [], shareSlug: "pasta-demo" },
       { id: "p-study", hostId: "naomi", kind: "study", title: "finals study session", place: "Butler Library, 3rd floor", neighborhood: "morningside heights", lat: 40.8064, lng: -73.9632, priceLevel: 0, note: "quiet hours, then tacos.", startsAt: nyAt(1, 14), openSpots: 4, bringing: 0, minPeople: 3, rsvps: ["iris"], photos: [] },
       { id: "p-uws", hostId: "theo", kind: "run", title: "riverside sunset run", place: "Riverside Park at 79th", neighborhood: "upper west side", lat: 40.7843, lng: -73.9845, priceLevel: 0, note: "6 miles, chatty pace.", startsAt: nyAt(1, 18), openSpots: 5, bringing: 0, minPeople: 3, rsvps: ["sofia", "marcus"], photos: [] },
       { id: "p-met", hostId: "iris", kind: "gallery", title: "the met after work", place: "The Met, 5th Ave", neighborhood: "upper east side", lat: 40.7794, lng: -73.9632, priceLevel: 1, costNote: "pay what you wish for ny residents", note: "", startsAt: nyAt(4, 18), openSpots: 4, bringing: 0, minPeople: 4, rsvps: ["lena", "theo"], photos: [] },
-      { id: "p-soccer", hostId: "marcus", kind: "sport", title: "pickup soccer", place: "McCarren Park turf", neighborhood: "williamsburg", lat: 40.7205, lng: -73.9515, priceLevel: 0, note: "bring a light and a dark shirt.", startsAt: nyAt(5, 10), openSpots: 9, bringing: 0, minPeople: 8, rsvps: ["theo", "lena", "iris"], photos: [] },
+      { id: "p-soccer", hostId: "marcus", occasion: "watching the match", kind: "sport", title: "pickup soccer", place: "McCarren Park turf", neighborhood: "williamsburg", lat: 40.7205, lng: -73.9515, priceLevel: 0, note: "bring a light and a dark shirt.", startsAt: nyAt(5, 10), openSpots: 9, bringing: 0, minPeople: 8, rsvps: ["theo", "lena", "iris"], photos: [] },
       { id: "p-cook", hostId: "sofia", kind: "class", title: "handmade dumpling class", place: "Home Cooking NY, 117 W 26th", neighborhood: "midtown", lat: 40.7454, lng: -73.9925, priceLevel: 3, costNote: "$95, ingredients included", sourceUrl: "https://www.instagram.com/reel/demo", sourceAuthor: "@homecookingny", note: "", startsAt: nyAt(6, 19), openSpots: 5, bringing: 1, minPeople: 4, rsvps: ["naomi", "marcus"], photos: [] },
       // not in your orbit: never shown in the app. its link (/p/dumplings-demo) shows how a friend of a friend joins
       { id: "p-hidden", hostId: "eva", kind: "dinner", title: "dumplings in chinatown", place: "Nom Wah Tea Parlor", neighborhood: "chinatown", lat: 40.7142, lng: -73.9981, priceLevel: 1, costNote: "cash is easiest", note: "", startsAt: nyAt(2, 19), openSpots: 3, bringing: 0, minPeople: 3, rsvps: [], photos: [], shareSlug: "dumplings-demo" },
@@ -102,8 +104,16 @@ function view(p: DemoPlan): PlanView {
     taken: p.rsvps.length, bringing: p.bringing, topic: p.topic ?? null, isHost: p.hostId === ME, joined: p.rsvps.includes(ME), status: status(p) as PlanStatus,
     title: p.title ?? null, shareSlug: slugOf(p), sourceUrl: p.sourceUrl ?? null, sourceAuthor: p.sourceAuthor ?? null,
     thumbnailUrl: p.thumbnailUrl ?? null, lat: p.lat ?? null, lng: p.lng ?? null, neighborhood: p.neighborhood ?? null,
-    priceLevel: p.priceLevel ?? null, costNote: p.costNote ?? null, minPeople: p.minPeople ?? 3, showHost: p.showHost ?? false,
+    priceLevel: p.priceLevel ?? null, costNote: p.costNote ?? null, minPeople: p.minPeople ?? 3,
+    occasion: p.occasion ?? null, hostMutuals: p.hostId === ME ? null : state().mutualsWithMe[p.hostId] ?? 0,
+    arrived: checkinsOf(p).length, meCheckedIn: checkinsOf(p).includes(ME),
   };
+}
+
+/** who checked in. plans that already happened count everyone in them as arrived. */
+function checkinsOf(p: DemoPlan) {
+  if (p.checkins) return p.checkins;
+  return new Date(p.startsAt).getTime() < Date.now() - 6 * 3600_000 ? [p.hostId, ...p.rsvps] : [];
 }
 
 const slugOf = (p: DemoPlan) => p.shareSlug ?? `${p.id.replace(/^p-/, "")}-demo`;
@@ -115,7 +125,7 @@ function teaserOf(p: DemoPlan): PlanTeaser | null {
     title: p.title ?? null, kind: p.kind, topic: p.topic ?? null, place: p.place, neighborhood: p.neighborhood ?? null, note: p.note || null,
     startsAt: p.startsAt, lat: p.lat ?? null, lng: p.lng ?? null, thumbnailUrl: p.thumbnailUrl ?? null, sourceAuthor: p.sourceAuthor ?? null,
     priceLevel: p.priceLevel ?? null, costNote: p.costNote ?? null, going: 1 + p.rsvps.length + p.bringing, minPeople: p.minPeople ?? 3,
-    maxPeople: 1 + p.bringing + p.openSpots, status: st, hostName: p.showHost ? nameOf(p.hostId) : null,
+    maxPeople: 1 + p.bringing + p.openSpots, status: st, hostMutuals: p.hostId === ME ? null : state().mutualsWithMe[p.hostId] ?? 0,
     isHost: p.hostId === ME, joined: p.rsvps.includes(ME), connected: p.hostId === ME || connected(p.hostId, ME),
   };
 }
@@ -123,6 +133,7 @@ function teaserOf(p: DemoPlan): PlanTeaser | null {
 function visible(p: DemoPlan) {
   const st = status(p);
   if (st === "off") return false;
+  if (p.hostId !== ME && state().blocked.includes(p.hostId)) return false;
   if (p.hostId === ME || p.rsvps.includes(ME)) return true;
   return connected(p.hostId, ME) && new Date(p.startsAt).getTime() > Date.now();
 }
@@ -139,6 +150,8 @@ function memView(m: DemoState["memories"][number], invitedBy: string | null) {
     id: m.id, kind: m.kind, place: m.place, happenedOn: m.happenedOn, note: m.note || null, isMine: m.createdBy === ME,
     withNames: names, waiting: m.createdBy === ME ? m.pending.length : 0, invitedBy, inIt: inMemory(m),
     placeKey: placeKey(m.place), ...summary([m]), myRating: m.ratings?.[ME] ?? null,
+    occasion: m.occasion ?? null, neighborhood: m.neighborhood ?? null,
+    withIds: [m.createdBy, ...m.accepted].filter((u) => u !== ME).sort((a, b) => nameOf(a).localeCompare(nameOf(b))),
   };
 }
 
@@ -177,7 +190,7 @@ export async function demoStore(): Promise<Store> {
   return {
     demo: true,
     async me() {
-      return { id: ME, email: "you@example.com", firstName: s.me.firstName, inviteCode: s.me.inviteCode };
+      return { id: ME, email: "you@example.com", firstName: s.me.firstName, inviteCode: s.me.inviteCode, photoUrl: s.me.photoUrl, bio: s.me.bio, neighborhood: s.me.neighborhood, appearInPicks: s.me.appearInPicks, since: s.me.since };
     },
     async createProfile(firstName) { s.me.firstName = firstName; },
     async updateName(firstName) { s.me.firstName = firstName; },
@@ -191,22 +204,25 @@ export async function demoStore(): Promise<Store> {
     async people(id) {
       const p = find(id);
       const inPlan = p.hostId === ME || p.rsvps.includes(ME);
-      if (!inPlan || new Date(p.startsAt).getTime() > Date.now() || p.rsvps.length + p.bringing < (p.minPeople ?? 3) - 1) return [];
+      if (!inPlan || !checkinsOf(p).includes(ME) || p.rsvps.length + p.bringing < (p.minPeople ?? 3) - 1) return [];
       return [p.hostId, ...p.rsvps]
-        .map((uid) => ({ id: uid, firstName: nameOf(uid), isHost: uid === p.hostId, isMe: uid === ME }))
+        .map((uid) => ({
+          id: uid, firstName: nameOf(uid), isHost: uid === p.hostId, isMe: uid === ME, arrived: checkinsOf(p).includes(uid),
+          photoUrl: uid === ME ? s.me.photoUrl : null,
+        }))
         .sort((a, b) => Number(b.isHost) - Number(a.isHost) || a.firstName.localeCompare(b.firstName));
     },
     async groupMutuals(id) {
       const p = find(id);
       const inPlan = p.hostId === ME || p.rsvps.includes(ME);
-      if (!inPlan || new Date(p.startsAt).getTime() > Date.now() || p.rsvps.length + p.bringing < (p.minPeople ?? 3) - 1) return 0;
+      if (!inPlan || !checkinsOf(p).includes(ME) || p.rsvps.length + p.bringing < (p.minPeople ?? 3) - 1) return 0;
       // demo stand-in for "different friends in common with the group": overlaps shrink the sum
       const counts = [p.hostId, ...p.rsvps].filter((u) => u !== ME).map((u) => s.mutualsWithMe[u] ?? 0);
       return Math.max(Math.max(0, ...counts), Math.round(counts.reduce((a, b) => a + b, 0) * 0.6));
     },
     async memories() {
       return s.memories
-        .filter((m) => canView(m) && !m.pending.includes(ME))
+        .filter((m) => canView(m) && !m.pending.includes(ME) && !s.blocked.includes(m.createdBy))
         .map((m) => memView(m, null))
         .sort((a, b) => b.happenedOn.localeCompare(a.happenedOn));
     },
@@ -250,6 +266,50 @@ export async function demoStore(): Promise<Store> {
       if (!m || !ph || !inMemory(m)) throw new Error("not found");
       const buf = Buffer.from(await file.arrayBuffer());
       ph.url = `data:image/jpeg;base64,${buf.toString("base64")}`;
+    },
+    async popular(from, to, by): Promise<Popular[]> {
+      const shown = s.memories.filter((m) => canView(m) && !m.pending.includes(ME) && m.happenedOn >= from && m.happenedOn <= to && !s.blocked.includes(m.createdBy));
+      const groups = new Map<string, DemoMemory[]>();
+      for (const m of shown) {
+        const k = by === "kind" ? m.kind : placeKey(m.place);
+        groups.set(k, [...(groups.get(k) ?? []), m]);
+      }
+      return [...groups].map(([key, ms]) => {
+        const sum = summary(ms);
+        return { key, label: by === "kind" ? key : ms[0].place.split(",")[0].trim(), kind: ms[0].kind, experiences: ms.length, average: sum.rating, ratings: sum.ratings };
+      }).sort((a, b) => b.experiences - a.experiences || (b.average ?? 0) - (a.average ?? 0)).slice(0, 30);
+    },
+    async checkIn(planId) {
+      const p = find(planId);
+      if (!(p.hostId === ME || p.rsvps.includes(ME))) throw new Error("plan not found");
+      const start = new Date(p.startsAt).getTime();
+      if (Date.now() < start - 3600_000) throw new Error("check-in opens an hour before");
+      if (Date.now() > start + 6 * 3600_000) throw new Error("this plan is over");
+      p.checkins = Array.from(new Set([...checkinsOf(p), ME]));
+      return p.checkins.length;
+    },
+    async updateProfile(p) {
+      s.me.bio = p.bio || null;
+      s.me.neighborhood = p.neighborhood || null;
+      s.me.appearInPicks = p.appearInPicks;
+    },
+    async uploadAvatar(file) {
+      const buf = Buffer.from(await file.arrayBuffer());
+      s.me.photoUrl = `data:${file.type || "image/jpeg"};base64,${buf.toString("base64")}`;
+    },
+    async blocked() {
+      return s.blocked.map((id) => ({ id, firstName: s.people[id] }));
+    },
+    async block(userId) {
+      if (!s.people[userId]) throw new Error("not found");
+      if (!s.blocked.includes(userId)) s.blocked.push(userId);
+      s.connections = s.connections.filter((c) => c !== userId);
+    },
+    async unblock(userId) {
+      s.blocked = s.blocked.filter((b) => b !== userId);
+    },
+    async deleteMe() {
+      g.__orbiDemo = seed();
     },
     async rateMemory(id, stars) {
       const m = s.memories.find((x) => x.id === id);
@@ -307,10 +367,6 @@ export async function demoStore(): Promise<Store> {
     async teaser(slug) {
       const p = s.plans.find((x) => slugOf(x) === slug);
       return p ? teaserOf(p) : null;
-    },
-    async linkHostName(slug) {
-      const p = s.plans.find((x) => slugOf(x) === slug);
-      return p && new Date(p.startsAt).getTime() > Date.now() ? nameOf(p.hostId) : null;
     },
     async joinViaLink(slug) {
       const p = s.plans.find((x) => slugOf(x) === slug);

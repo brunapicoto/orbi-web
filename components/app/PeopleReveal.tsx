@@ -24,7 +24,12 @@ export function PeopleReveal({ people, animate, extra = 0 }: { people: Person[];
         const dark = tone === "#7A1428";
         return (
           <li key={p.id} className="flex items-center gap-4 px-5 py-4">
-            <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-line">
+            <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-line ring-2 ring-lavender/60">
+              {p.photoUrl && shown ? (
+                // only people in your orbit (and you) show a photo
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={p.photoUrl} alt="" className="absolute inset-0 z-10 h-full w-full object-cover" />
+              ) : null}
               <motion.span
                 className="absolute inset-0 flex items-center justify-center font-[family-name:var(--font-display)] text-[17px]"
                 style={{ background: tone, color: dark ? "#F4F1F1" : "#0E0C0D" }}
@@ -46,7 +51,7 @@ export function PeopleReveal({ people, animate, extra = 0 }: { people: Person[];
               >
                 {shown ? p.firstName.toLowerCase() : "someone"}
               </motion.span>
-              <span className="mono text-muted-2">{p.isMe ? "you" : p.isHost ? "hosted it" : "said yes"}</span>
+              <span className="mono text-muted-2">{p.isHost ? (p.isMe ? "you hosted" : "your host") : p.isMe ? "that's you" : p.arrived ? "here" : "on the way"}</span>
             </span>
           </li>
         );

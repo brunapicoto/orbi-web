@@ -20,13 +20,13 @@ const STEPS: { n: string; title: string; body: string; phase: DialPhase }[] = [
   {
     n: "02",
     title: "mutuals rsvp blind",
-    body: "Your mutuals see “someone is hosting.” Nobody sees who else is in, not even the host.",
+    body: "Your mutuals see “someone with 12 mutuals is hosting,” never a name. Nobody sees who else is in, not even the host.",
     phase: "blind",
   },
   {
     n: "03",
     title: "show up and meet",
-    body: "The group is revealed when you show up. If a plan doesn't reach 3, it quietly doesn't happen. Nobody gets a no.",
+    body: "Check in at the door and the group is revealed. If a plan doesn't reach 3, it quietly doesn't happen. Nobody gets a no.",
     phase: "reveal",
   },
   {

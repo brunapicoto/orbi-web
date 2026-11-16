@@ -6,6 +6,7 @@ import { KindIcon } from "@/components/app/KindIcon";
 import { PinPicker } from "@/components/app/map";
 import type { LinkSource, PlanDraft } from "@/lib/app/fromLink";
 import { KINDS, TOPICS } from "@/lib/app/kinds";
+import { OCCASIONS } from "@/lib/app/occasions";
 
 const PRICES = [
   { v: "0", label: "free" },
@@ -35,7 +36,7 @@ export function NewPlanForm({ initialKind = "", initialPlace = "", draft, source
   const [neighborhood, setNeighborhood] = useState(draft?.neighborhood ?? "");
   const [price, setPrice] = useState(draft?.priceLevel != null ? String(draft.priceLevel) : "");
   const [costNote, setCostNote] = useState("");
-  const [showHost, setShowHost] = useState(false);
+  const [occasion, setOccasion] = useState("");
   const [pin, setPin] = useState<{ lat: number | null; lng: number | null }>({ lat: draft?.lat ?? null, lng: draft?.lng ?? null });
   const [mapOpen, setMapOpen] = useState(!!draft);
   const [searching, startSearch] = useTransition();
@@ -247,6 +248,20 @@ export function NewPlanForm({ initialKind = "", initialPlace = "", draft, source
       </fieldset>
 
       <fieldset className="flex flex-col gap-3">
+        <legend className="mono mb-3 text-muted-2">the mood (optional)</legend>
+        <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+          {OCCASIONS.map((o) => (
+            <label key={o} className="shrink-0 cursor-pointer">
+              <input type="radio" name="occasion" value={o} checked={occasion === o} onChange={() => setOccasion(o)} onClick={() => occasion === o && setOccasion("")} className="peer sr-only" />
+              <span className="mono flex min-h-11 items-center rounded-full border border-line px-4 text-[13px] text-bone transition-colors peer-checked:border-lavender peer-checked:bg-lavender peer-checked:text-ink peer-focus-visible:ring-2 peer-focus-visible:ring-lavender">
+                {o}
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-3">
         <legend className="mono mb-3 text-muted-2">price (optional)</legend>
         <div className="flex flex-wrap gap-2">
           {PRICES.map((p) => (
@@ -271,15 +286,8 @@ export function NewPlanForm({ initialKind = "", initialPlace = "", draft, source
         {fe.note ? <p className="mono text-lavender">{fe.note}</p> : null}
       </div>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-line p-4 text-[15px] text-muted">
-        <p>
-          only your mutuals see this plan. {showHost ? "your first name shows on the share link." : "they see \u201csomeone is hosting,\u201d never your name,"} and nobody sees who else is in until it starts.
-        </p>
-        <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4">
-          <span className="text-bone">show my name on the share link</span>
-          <input type="checkbox" name="showHost" checked={showHost} onChange={(e) => setShowHost(e.target.checked)} className="peer sr-only" />
-          <span aria-hidden="true" className="relative h-7 w-12 shrink-0 rounded-full border border-line bg-ink-2 transition-colors after:absolute after:left-1 after:top-1 after:h-[18px] after:w-[18px] after:rounded-full after:bg-muted after:transition-transform peer-checked:bg-lavender peer-checked:after:translate-x-5 peer-checked:after:bg-ink peer-focus-visible:ring-2 peer-focus-visible:ring-lavender" />
-        </label>
+      <div className="rounded-2xl border border-line p-4 text-[15px] text-muted">
+        only your mutuals see this plan. they see &ldquo;someone with N mutuals is hosting,&rdquo; never your name, and nobody sees who else is in until they arrive.
       </div>
 
       {state.error ? (

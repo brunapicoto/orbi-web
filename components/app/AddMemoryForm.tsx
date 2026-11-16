@@ -6,6 +6,7 @@ import { addMemory, uploadMemoryPhoto, type FormState } from "@/app/app/actions"
 import { KindIcon } from "@/components/app/KindIcon";
 import { shrink } from "@/components/app/PhotoUpload";
 import { KINDS } from "@/lib/app/kinds";
+import { OCCASIONS } from "@/lib/app/occasions";
 
 const field =
   "w-full rounded-2xl border border-line bg-ink-2 px-4 py-3.5 text-[17px] text-bone placeholder:text-muted-2 outline-none focus-visible:border-lavender focus-visible:ring-2 focus-visible:ring-lavender";
@@ -131,6 +132,23 @@ export function AddMemoryForm({ mutuals, places = [] }: { mutuals: { id: string;
         </datalist>
         {fe.place ? <p className="mono text-lavender">{fe.place}</p> : null}
       </div>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="am-hood" className="mono text-muted-2">neighborhood (optional)</label>
+        <input id="am-hood" name="neighborhood" maxLength={40} placeholder="west village, williamsburg…" className={field} />
+      </div>
+
+      <fieldset className="flex flex-col gap-3">
+        <legend className="mono mb-3 text-muted-2">the mood (optional)</legend>
+        <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+          {OCCASIONS.map((o) => (
+            <label key={o} className="shrink-0 cursor-pointer">
+              <input type="radio" name="occasion" value={o} className="peer sr-only" />
+              <span className={chip}>{o}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <div className="flex flex-col gap-2">
         <label htmlFor="am-day" className="mono text-muted-2">when</label>

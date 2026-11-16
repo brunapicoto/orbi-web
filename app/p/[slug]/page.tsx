@@ -9,6 +9,7 @@ import { MiniMap } from "@/components/app/map";
 import { formatWhen, planLabel } from "@/lib/app/kinds";
 import { countLine, planTitle, priceLabel } from "@/lib/app/planText";
 import { getStore } from "@/lib/app/store";
+import { hostLine } from "@/lib/app/hostLine";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +85,7 @@ export default async function PublicPlan({ params }: { params: Promise<{ slug: s
 
           {t.note ? <p className="border-l-2 border-lavender/50 pl-4 text-muted">{t.note}</p> : null}
 
-          <p className="mono text-muted-2">{t.hostName ? `hosted by ${t.hostName.toLowerCase()}` : "someone is hosting"} · names show when it starts</p>
+          <p className="mono text-muted-2">{hostLine(t.hostMutuals)} · names show when you arrive</p>
 
           <LinkJoin slug={slug} signedIn={data.signedIn} isHost={t.isHost} joined={t.joined} connected={t.connected} status={t.status} />
         </article>

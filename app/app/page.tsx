@@ -2,17 +2,17 @@ import Link from "next/link";
 import { OrbitDial } from "@/components/OrbitDial";
 import { KindIcon } from "@/components/app/KindIcon";
 import { PlanCard } from "@/components/app/PlanCard";
-import { ViewToggle } from "@/components/app/ViewToggle";
-import { KINDS } from "@/lib/app/kinds";
+import { KINDS, TIME_ZONE, formatWhen } from "@/lib/app/kinds";
 import { rankPlans } from "@/lib/app/rank";
 import { requireMe } from "@/lib/app/session";
 import type { PlanSignal, PlanView } from "@/lib/app/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function PlansHome({ searchParams }: { searchParams: Promise<{ kind?: string; sort?: string }> }) {
-  const { store, me } = await requireMe("/app");
-  const { kind, sort } = await searchParams;
+export default async function PlansHome({ searchParams }: { searchParams: Promise<{ kind?: string; sort?: string; show?: string }> }) {
+  const { store } = await requireMe("/app");
+  const { kind, sort, show } = await searchParams;
+  const view = show === "open" || show === "going" ? show : "everyone";
   const prefs = await store.prefs();
   const soonest = sort === "soonest";
   const plans = await store.plans();
@@ -35,26 +35,53 @@ export default async function PlansHome({ searchParams }: { searchParams: Promis
     const sp = new URLSearchParams();
     const k = "kind" in o ? o.kind : active;
     const st = "sort" in o ? o.sort : soonest ? "soonest" : null;
+    const sh = "show" in o ? o.show : view === "everyone" ? null : view;
     if (k) sp.set("kind", k);
     if (st) sp.set("sort", st);
+    if (sh) sp.set("show", sh);
     const str = sp.toString();
     return str ? `/app?${str}` : "/app";
   };
 
+  const todayNy = new Date().toLocaleDateString("en-CA", { timeZone: TIME_ZONE });
+  const tonight = mine.find((p) => new Date(p.startsAt).toLocaleDateString("en-CA", { timeZone: TIME_ZONE }) === todayNy) ?? now.find((p) => p.isHost || p.joined);
+  const showOpen = view !== "going";
+  const showMine = view !== "open";
+
   return (
-    <div className="flex flex-col gap-12">
-      <header className="flex flex-col gap-2">
-        <p className="mono text-muted-2">hi {me.firstName.toLowerCase()}</p>
-        <h1 className="display text-[3rem]">what&apos;s the plan?</h1>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[16px] text-muted">everyone here is from your network.</p>
-          <ViewToggle current="list" />
-        </div>
+    <div className="flex flex-col gap-10">
+      <header className="flex flex-col gap-4">
+        <p className="mono text-[12px] uppercase tracking-widest text-muted-2">this week · new york</p>
+        <h1 className="display text-[3.4rem]">who&apos;s making plans.</h1>
+        <nav aria-label="show" className="-mx-5 flex items-center gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+          <Chip href={q({ show: null })} active={view === "everyone"} label="everyone" />
+          <Chip href={q({ show: "open" })} active={view === "open"} label="spots open" />
+          <Chip href={q({ show: "going" })} active={view === "going"} label="you're going" />
+          <Link href="/app/map" className="mono flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-lavender/60 px-4 text-[13px] text-lavender hover:bg-lavender hover:text-ink">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.7} aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.3" /></svg>
+            view map
+          </Link>
+        </nav>
       </header>
 
-      <Group title="happening now" plans={now} />
-      <Group title="you're going" plans={mine} signals={signals} empty="nothing yet. join a plan below, or post one." />
-      {kindsHere.length > 1 ? (
+      {tonight ? (
+        <Link href={`/app/plan/${tonight.id}`} className="flex items-center gap-4 rounded-[20px] bg-bone px-4 py-4 text-ink transition-colors hover:bg-lavender">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-wine text-bone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.7}><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.3" /></svg>
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="mono text-[11px] uppercase tracking-wider text-ink/60">
+              {tonight.status === "live" ? "happening now" : `today at ${formatWhen(tonight.startsAt).split(" · ")[1]}`}
+            </span>
+            <span className="display truncate text-[1.5rem] leading-tight">ready for {(tonight.title || tonight.place).split(",")[0].toLowerCase()}?</span>
+          </span>
+          <span aria-hidden="true" className="text-[20px]">→</span>
+        </Link>
+      ) : null}
+
+      {showMine ? <Group title="happening now" plans={now} /> : null}
+      {showMine ? <Group title="you're going" plans={mine} signals={signals} empty="nothing yet. save a spot below, or post one." /> : null}
+      {showOpen && kindsHere.length > 1 ? (
         <nav aria-label="filter plans by type" className="-mx-5 -mb-6 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
           <Chip href={q({ kind: null })} active={!active} label="everything" />
           {kindsHere.map((k) => (
@@ -62,7 +89,7 @@ export default async function PlansHome({ searchParams }: { searchParams: Promis
           ))}
         </nav>
       ) : null}
-      {openAll.length > 1 ? (
+      {showOpen && openAll.length > 1 ? (
         <div className="-mb-8 flex flex-wrap items-center justify-between gap-3">
           <div className="flex gap-1 rounded-full border border-line p-1" role="group" aria-label="order plans">
             <Link href={q({ sort: null })} scroll={false} aria-current={!soonest ? "true" : undefined} className={`mono rounded-full px-3 py-2 text-[12px] ${!soonest ? "bg-bone text-ink" : "text-muted-2 hover:text-bone"}`}>
@@ -83,7 +110,7 @@ export default async function PlansHome({ searchParams }: { searchParams: Promis
           )}
         </div>
       ) : null}
-      <Group
+      {showOpen ? <Group
         title="open to you"
         plans={open}
         signals={signals}
@@ -101,8 +128,9 @@ export default async function PlansHome({ searchParams }: { searchParams: Promis
             .
           </span>
         }
-      />
-      {past.length ? <Group title="it happened" plans={past} /> : null}
+      /> : null}
+      {view === "everyone" && past.length ? <Group title="it happened" plans={past} /> : null}
+      {view === "everyone" && plans.length ? <p className="display text-center text-[1.3rem] text-muted-2">that&apos;s your week.</p> : null}
 
       {plans.length === 0 ? (
         <div className="flex flex-col items-center gap-6 py-6 text-center">

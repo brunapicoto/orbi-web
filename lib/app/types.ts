@@ -31,7 +31,13 @@ export type PlanView = {
   costNote: string | null;
   /** everyone counted, host included; 3 or more */
   minPeople: number;
-  showHost: boolean;
+  /** "after-work", "watching the match"... */
+  occasion: string | null;
+  /** how many friends you share with the host (never who). null when you're the host. */
+  hostMutuals: number | null;
+  /** people in the plan who checked in at the door */
+  arrived: number;
+  meCheckedIn: boolean;
 };
 
 /** What anyone with the public link sees. Never who is in; the host only if they chose to show it. */
@@ -40,15 +46,32 @@ export type PlanTeaser = {
   startsAt: string; lat: number | null; lng: number | null; thumbnailUrl: string | null; sourceAuthor: string | null;
   priceLevel: number | null; costNote: string | null;
   going: number; minPeople: number; maxPeople: number; status: PlanStatus;
-  hostName: string | null; isHost: boolean; joined: boolean; connected: boolean;
+  hostMutuals: number | null; isHost: boolean; joined: boolean; connected: boolean;
 };
 
-export type Person = { id: string; firstName: string; isHost: boolean; isMe: boolean };
+export type Person = {
+  id: string; firstName: string; isHost: boolean; isMe: boolean;
+  /** checked in at the door */
+  arrived: boolean;
+  /** only for you and people in your orbit */
+  photoUrl: string | null;
+};
 
 /** Group-level trust signal: never about one person. `band` is null below the anonymity threshold. */
 export type PlanSignal = { others: number; band: string | null };
 
-export type Me = { id: string; email: string | null; firstName: string | null; inviteCode: string | null };
+export type Me = {
+  id: string; email: string | null; firstName: string | null; inviteCode: string | null;
+  photoUrl: string | null; bio: string | null; neighborhood: string | null;
+  /** show up in "keep in orbit" after plans */
+  appearInPicks: boolean;
+  since: string | null;
+};
+
+export type ProfileEdit = { bio: string; neighborhood: string; appearInPicks: boolean };
+
+/** a place or an activity, by how many experiences happened there in a date range */
+export type Popular = { key: string; label: string; kind: string; experiences: number; average: number | null; ratings: number | null };
 
 export type Photo = { id: string; url: string };
 
@@ -71,6 +94,10 @@ export type MemoryView = {
   inIt: boolean;
   /** the place as a key, to group memories at the same spot */
   placeKey: string;
+  occasion: string | null;
+  neighborhood: string | null;
+  /** ids of the people named in withNames, same order (for "with naomi"; people have no rating) */
+  withIds: string[];
   /** the experience's rating: null until 3 different people who were there have rated */
   rating: number | null;
   ratings: number | null;
@@ -83,13 +110,13 @@ export type ExperienceSummary = { average: number | null; ratings: number | null
 
 export type MemoryInvite = { id: string; kind: string; place: string; happenedOn: string; fromName: string };
 
-export type NewMemory = { kind: string; place: string; happenedOn: string; note: string; tagged: string[] };
+export type NewMemory = { kind: string; place: string; happenedOn: string; note: string; tagged: string[]; occasion?: string | null; neighborhood?: string | null };
 
 export type NewPlan = {
   kind: string; place: string; note: string; startsAt: string; openSpots: number; bringing: number; topic?: string | null;
   title?: string | null; sourceUrl?: string | null; sourceAuthor?: string | null; thumbnailUrl?: string | null;
   lat?: number | null; lng?: number | null; neighborhood?: string | null; priceLevel?: number | null; costNote?: string | null;
-  minPeople?: number; showHost?: boolean;
+  minPeople?: number; occasion?: string | null;
 };
 
 /** After a plan: who you picked to keep in your orbit, and who you're already connected to. */

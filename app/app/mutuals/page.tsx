@@ -1,3 +1,4 @@
+import { BlockButton } from "@/components/app/ProfileBits";
 import { headers } from "next/headers";
 import { CopyLink } from "@/components/app/Forms";
 import { requireMe } from "@/lib/app/session";
@@ -50,7 +51,8 @@ export default async function Mutuals({ searchParams }: { searchParams: Promise<
                 <span className="display flex h-10 w-10 items-center justify-center rounded-full bg-bordeaux text-[17px] text-bone" aria-hidden="true">
                   {m.firstName.slice(0, 1).toLowerCase()}
                 </span>
-                <span className="text-bone">{m.firstName.toLowerCase()}</span>
+                <span className="flex-1 text-bone">{m.firstName.toLowerCase()}</span>
+                <BlockButton id={m.id} name={m.firstName.toLowerCase()} />
               </li>
             ))}
           </ul>

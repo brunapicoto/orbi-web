@@ -8,21 +8,21 @@ import { NameForm } from "@/components/app/Forms";
 const STEPS: { phase: DialPhase; kicker: string; title: string; body: string }[] = [
   {
     phase: "full",
-    kicker: "01 / 03",
+    kicker: "01 / 03 · how it works",
     title: "open a spot, save a spot.",
-    body: "post a plan with open spots: a dinner, a run, the sauna. only your mutuals see it, and nobody sees who else said yes. not even the host.",
+    body: "dinner. a round of drinks. a morning run. the match. post a plan with open spots: your network confirms, no names appear, not even to the host. someone with a few mutuals is hosting. everyone meets in person.",
   },
   {
     phase: "blind",
-    kicker: "02 / 03",
-    title: "no browsing. no rating. no dms.",
-    body: "no profiles to scroll, no photos to score, no 1:1 chat before the plan. you meet everyone in the room, then decide who stays in your orbit.",
+    kicker: "02 / 03 · at the door",
+    title: "walk in. tell them you're with orbi.",
+    body: "check in when you arrive, and the group is revealed. until then, nobody knows who's coming. then keep the people you actually clicked with.",
   },
   {
     phase: "reveal",
-    kicker: "03 / 03",
-    title: "only your orbit.",
-    body: "always groups of 3 or more. only people one degree from you. if a plan doesn't reach 3, it quietly doesn't happen and nobody gets a no.",
+    kicker: "03 / 03 · one more thing",
+    title: "no likes. no comments. no people to rate.",
+    body: "plans become memories your network can see. the people who were there rate the experience, anonymously. always groups of 3 or more, only people one step from you.",
   },
 ];
 

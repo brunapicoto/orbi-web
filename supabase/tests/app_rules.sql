@@ -83,7 +83,19 @@ update plans set starts_at = now() - interval '30 minutes' where id in ('1111111
 set role authenticated;
 
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
-select pg_temp.check((select string_agg(first_name, ',' order by first_name) from plan_people('11111111-0000-0000-0000-000000000001')) = 'Ana,Bia,Caio', 'at start time Bia sees who is there: Ana, Bia, Caio');
+select pg_temp.check((select count(*) from plan_people('11111111-0000-0000-0000-000000000001')) = 0, 'at start time, before checking in, Bia still gets no names');
+select pg_temp.check(check_in('11111111-0000-0000-0000-000000000001') = 1, 'Bia checks in at the door: 1 arrived');
+select pg_temp.check((select arrived from my_plans() where id='11111111-0000-0000-0000-000000000001') = 1 and (select me_checked_in from my_plans() where id='11111111-0000-0000-0000-000000000001'), 'she sees 1 arrived, and that it is her');
+select pg_temp.check((select string_agg(first_name, ',' order by first_name) from plan_people('11111111-0000-0000-0000-000000000001')) = 'Ana,Bia,Caio', 'after checking in Bia sees who is there: Ana, Bia, Caio');
+select pg_temp.check((select count(*) from plan_people('11111111-0000-0000-0000-000000000001') where arrived) = 1, 'and who has arrived (only her so far)');
+select pg_temp.check((select photo_path from plan_people('11111111-0000-0000-0000-000000000001') where first_name = 'Caio') is null, 'no photo of Caio: he is not in her orbit');
+select pg_temp.expect_fail($$select check_in('11111111-0000-0000-0000-000000000004')$$, 'no check-in for a plan that did not reach its minimum');
+select pg_temp.expect_fail($$select check_in('11111111-0000-0000-0000-000000000003')$$, 'no check-in more than an hour before');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c'); select check_in('11111111-0000-0000-0000-000000000001');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a'); select check_in('11111111-0000-0000-0000-000000000001');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000d');
+select pg_temp.expect_fail($$select check_in('11111111-0000-0000-0000-000000000001')$$, 'Duda, not in the dinner, cannot check in');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
 select pg_temp.check((select first_name from plan_people('11111111-0000-0000-0000-000000000001') where is_host) = 'Ana', 'and who hosted');
 select pg_temp.check((select status from my_plans() where id='11111111-0000-0000-0000-000000000001') = 'live', 'the dinner is live');
 select leave_plan('11111111-0000-0000-0000-000000000001');
@@ -172,6 +184,7 @@ update plans set starts_at = now() - interval '10 minutes' where id = '11111111-
 set role authenticated;
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
 -- Bia's friends: Ana, Eva, Caio. Outside the plan only Eva counts, and Eva is nobody's friend in the group.
+select check_in('11111111-0000-0000-0000-000000000005');
 select pg_temp.check(plan_group_mutuals('11111111-0000-0000-0000-000000000005') = 0, 'friends already in the plan are not counted');
 select pg_temp.check(pg_get_function_result('public.plan_people(uuid)'::regprocedure) not ilike '%mutual%', 'the reveal list has no per-person friend counts');
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000e');
@@ -317,6 +330,42 @@ select pg_temp.as_user('00000000-0000-0000-0000-000000000011');
 select pg_temp.check((select experiences from experience_summary('pinch chinese', null)) = 0 and (select average from experience_summary('pinch chinese', null)) is null, 'someone outside every network gets nothing');
 reset role;
 
+-- ---------------------------------------------------------------- anonymous host, popular, blocking, leaving
+set role authenticated;
+-- popular this week: places by number of experiences, with the score only past 3 people
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check((select key from popular_experiences(current_date - 7, current_date) limit 1) = 'pinch chinese', 'the most popular place this week: pinch chinese (2 experiences)');
+select pg_temp.check((select experiences from popular_experiences(current_date - 7, current_date) where key = 'pinch chinese') = 2 and (select average from popular_experiences(current_date - 7, current_date) where key = 'pinch chinese') = 3.4, 'with its weighted score');
+select pg_temp.check((select experiences from popular_experiences(current_date - 7, current_date, 'kind') where key = 'hike') = 2, 'or by activity: 2 hikes');
+select pg_temp.check((select count(*) from popular_experiences(current_date + 1, current_date + 7)) = 0, 'nothing in a week that has not happened');
+select pg_temp.check(pg_get_function_result('public.popular_experiences(date, date, text)'::regprocedure) not ilike '%user%', 'popular lists experiences, never people');
+
+-- blocking: quiet, both ways, and it ends the connection
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c');
+select block_person('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check(not are_connected('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000c'), 'Caio blocks Ana: they are no longer connected');
+select pg_temp.check((select count(*) from my_plans() where id = '11111111-0000-0000-0000-000000000009') = 0, 'her plans disappear for him');
+select pg_temp.check((select first_name from my_blocks()) = 'Ana', 'he sees her in his blocked list');
+select pg_temp.check((select count(*) from my_memories() where id = current_setting('t.m1')::uuid) = 0, 'her memories disappear for him too');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.expect_fail($$select * from blocks$$, 'nobody reads the blocks table: Ana is never told');
+select unblock_person('00000000-0000-0000-0000-00000000000c');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c');
+select pg_temp.check((select count(*) from my_blocks()) = 1, 'only the person who blocked can undo it');
+select unblock_person('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check((select count(*) from my_blocks()) = 0, 'Caio lets Ana back in (the connection does not come back by itself)');
+select pg_temp.check(not are_connected('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000c'), 'still not connected');
+select accept_invite((select invite_code from codes where first_name='Ana'));
+
+-- your photo: you and your orbit
+insert into storage.objects (bucket_id, name) values ('avatars', '00000000-0000-0000-0000-00000000000c/me.jpg');
+select pg_temp.expect_fail($$insert into storage.objects (bucket_id, name) values ('avatars', '00000000-0000-0000-0000-00000000000b/me.jpg')$$, 'nobody uploads a photo as someone else');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check((select count(*) from storage.objects where bucket_id = 'avatars') = 1, 'Bia (in Caio''s orbit) sees his photo');
+select pg_temp.as_user('00000000-0000-0000-0000-000000000011');
+select pg_temp.check((select count(*) from storage.objects where bucket_id = 'avatars') = 0, 'someone outside his orbit does not');
+reset role;
+
 -- ---------------------------------------------------------------- preferences are private
 set role authenticated;
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
@@ -341,8 +390,8 @@ select pg_temp.expect_fail($$insert into plans (kind, place, starts_at, open_spo
 select pg_temp.expect_fail($$insert into plans (kind, place, starts_at, open_spots, source_url) values ('dinner','Lilia', now() + interval '1 day', 3, 'javascript:alert(1)')$$, 'links must be https');
 insert into plans (id, kind, title, place, neighborhood, starts_at, open_spots, min_people, share_slug, lat, lng, price_level, source_url)
   values ('11111111-0000-0000-0000-000000000008', 'dinner', 'pasta bar', 'Via Carota', 'west village', now() + interval '2 days', 3, 4, 'pastabar01', 40.733, -74.004, 2, 'https://www.tiktok.com/@x/video/1');
-insert into plans (id, kind, place, starts_at, open_spots, show_host, share_slug)
-  values ('11111111-0000-0000-0000-000000000009', 'study', 'Butler Library', now() + interval '2 days', 3, true, 'butler0001');
+insert into plans (id, kind, place, starts_at, open_spots, share_slug, occasion)
+  values ('11111111-0000-0000-0000-000000000009', 'study', 'Butler Library', now() + interval '2 days', 3, 'butler0001', 'finals week');
 select pg_temp.check((select share_slug from my_plans() where id = '11111111-0000-0000-0000-000000000005') is not null, 'every plan gets a share link, old ones too');
 select pg_temp.check((select min_people from my_plans() where id = '11111111-0000-0000-0000-000000000005') = 3, 'old plans keep a minimum of 3');
 reset role;
@@ -350,12 +399,12 @@ reset role;
 set role anon;
 select pg_temp.check((select title from plan_teaser('pastabar01')) = 'pasta bar', 'anyone with the link sees the teaser');
 select pg_temp.check((select going from plan_teaser('pastabar01')) = 1 and (select status from plan_teaser('pastabar01')) = 'open', 'with "1 of 4 in", waiting');
-select pg_temp.check((select host_name from plan_teaser('pastabar01')) is null, 'and not who is hosting');
+select pg_temp.check((select host_mutuals from plan_teaser('pastabar01')) is null, 'and nothing about the host when signed out');
 select pg_temp.check(pg_get_function_result('public.plan_teaser(text)'::regprocedure) not ilike '%host_id%', 'the teaser never returns a host id');
-select pg_temp.check((select host_name from plan_teaser('butler0001')) = 'Ana', 'unless the host chose to show their name');
+select pg_temp.check(pg_get_function_result('public.plan_teaser(text)'::regprocedure) not ilike '%name%', 'the teaser has no name field at all: the host is always anonymous');
 select pg_temp.check((select count(*) from plan_teaser('nope')) = 0, 'an unknown link shows nothing');
 select pg_temp.expect_fail($$select join_via_link('pastabar01')$$, 'signed-out visitors cannot join');
-select pg_temp.expect_fail($$select link_host_name('pastabar01')$$, 'or ask who hosts');
+select pg_temp.check((select count(*) from pg_proc where proname = 'link_host_name') = 0, 'no function tells who hosts a link');
 select pg_temp.expect_fail($$select * from plans$$, 'or read plans directly');
 reset role;
 
@@ -363,7 +412,7 @@ set role authenticated;
 select pg_temp.as_user('00000000-0000-0000-0000-000000000011');
 select pg_temp.check((select count(*) from my_plans()) = 0, 'Hugo, not in Ana''s orbit, does not see her plans in the app');
 select pg_temp.check((select connected from plan_teaser('pastabar01')) = false, 'the link page knows he is not connected yet');
-select pg_temp.check(link_host_name('pastabar01') = 'Ana', 'before saying yes he sees whose orbit he would join');
+select pg_temp.check((select host_mutuals from plan_teaser('pastabar01')) = 0, 'signed in, he sees how many mutuals he shares with the host (0), not who');
 select pg_temp.check(join_via_link('pastabar01') = '11111111-0000-0000-0000-000000000008', 'he says "i''m in" from the link');
 select pg_temp.check(are_connected('00000000-0000-0000-0000-00000000000a', auth.uid()), 'which puts him in Ana''s orbit');
 select pg_temp.check((select joined from plan_teaser('pastabar01')) and (select going from plan_teaser('pastabar01')) = 2, 'and in the plan: 2 of 4');
@@ -378,6 +427,15 @@ select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
 select pg_temp.expect_fail($$select join_via_link('pastabar01')$$, 'the host cannot join their own plan from the link');
 reset role;
 
+-- the host is anonymous in the app too
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c');
+select pg_temp.check((select host_mutuals from my_plans() where id = '11111111-0000-0000-0000-000000000009') >= 1, 'Caio sees "someone with N mutuals is hosting" (at least Bia), never the name');
+select pg_temp.check(pg_get_function_result('public.my_plans()'::regprocedure) not ilike '%host_id%' and pg_get_function_result('public.my_plans()'::regprocedure) not ilike '%host_name%', 'my_plans() has no host id or name');
+select pg_temp.check((select occasion from my_plans() where id = '11111111-0000-0000-0000-000000000009') = 'finals week', 'plans carry an occasion');
+
+reset role;
+
 -- signed-out visitors
 set role anon;
 select pg_temp.expect_fail($$select * from my_plans()$$, 'signed-out visitors cannot call the app functions');
@@ -385,4 +443,11 @@ select pg_temp.expect_fail($$select * from profiles$$, 'or read profiles');
 select pg_temp.expect_fail($$select * from plan_signal('11111111-0000-0000-0000-000000000005')$$, 'or get a trust signal');
 select pg_temp.expect_fail($$select * from preferences$$, 'or read anyone''s preferences');
 reset role;
+-- leaving orbi deletes everything that is yours
+insert into auth.users values ('00000000-0000-0000-0000-000000000012');
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-000000000012'); insert into profiles (id, first_name) values (auth.uid(), 'Ivo');
+select delete_me();
+reset role;
+select pg_temp.check((select count(*) from profiles where first_name = 'Ivo') = 0, 'Ivo leaves orbi: his profile is gone');
 \echo ALL TESTS PASSED

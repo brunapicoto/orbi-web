@@ -44,6 +44,15 @@ html {
   background: var(--color-wine);
 }
 
+/* app headlines: the serif, in italic (the site keeps Inter Tight) */
+.app-theme .display {
+  font-family: var(--font-serif), Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 0.98;
+}
+
 body {
   background: var(--color-ink);
   color: var(--color-bone);

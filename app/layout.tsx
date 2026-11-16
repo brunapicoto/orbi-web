@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Inter, Inter_Tight } from "next/font/google";
+import { IBM_Plex_Mono, Instrument_Serif, Inter, Inter_Tight } from "next/font/google";
 import { SITE } from "@/lib/site";
 import "./globals.css";
 
@@ -7,6 +7,15 @@ const interTight = Inter_Tight({
   subsets: ["latin"],
   weight: ["500"],
   variable: "--font-inter-tight",
+  display: "swap",
+});
+
+// the app's headlines: an editorial serif, italic
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: ["400"],
+  style: ["normal", "italic"],
+  variable: "--font-serif",
   display: "swap",
 });
 
@@ -49,7 +58,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${interTight.variable} ${inter.variable} ${plexMono.variable}`}>
+    <html lang="en" className={`${interTight.variable} ${inter.variable} ${plexMono.variable} ${instrumentSerif.variable}`}>
       <body>
         <a
           href="#main"
