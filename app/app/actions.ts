@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { geocode, parseFrames, platformOf, readLink, suggestPlan, type LinkSource, type PlanDraft } from "@/lib/app/fromLink";
-import { askMars, extractPlaces, placesFromLink, type MarsAsk, type MarsPick } from "@/lib/app/mars";
+import { askJuno, extractPlaces, placesFromLink, type JunoAsk, type JunoPick } from "@/lib/app/juno";
 import type { NewPlace } from "@/lib/app/types";
 import { KIND_IDS, TOPIC_IDS } from "@/lib/app/kinds";
 import { friendly, getStore } from "@/lib/app/store";
@@ -457,7 +457,7 @@ export async function uploadMemoryPhoto(_prev: FormState, fd: FormData): Promise
   return { ok: true };
 }
 
-// ---------------------------------------------------------------- your lists, and mars
+// ---------------------------------------------------------------- your lists, and juno
 
 const PLACE_CAT_IDS = ["coffee", "bar", "restaurant", "park", "gem", "activity", "other"];
 
@@ -538,16 +538,16 @@ export async function addPlace(_prev: FormState, fd: FormData): Promise<FormStat
   return savePlaces(listId, [{ name, neighborhood: String(fd.get("neighborhood") ?? ""), category: String(fd.get("category") ?? "other") as NewPlace["category"], note: String(fd.get("note") ?? "") }]);
 }
 
-export type MarsState = { error?: string; pick?: MarsPick };
+export type JunoState = { error?: string; pick?: JunoPick };
 
-/** ask mars for a plan: your group, budget, neighborhood and mood. uses your lists and what's popular. */
-export async function planWithMars(_prev: MarsState, fd: FormData): Promise<MarsState> {
+/** ask juno for a plan: your group, budget, neighborhood and mood. uses your lists and what's popular. */
+export async function planWithJuno(_prev: JunoState, fd: FormData): Promise<JunoState> {
   const store = await getStore();
   if (!(await store.me())) return { error: "sign in first." };
   const groupSize = Math.min(12, Math.max(3, Number(fd.get("groupSize") ?? 4) || 4));
-  const budget = (["free", "$", "$$", "$$$"].includes(String(fd.get("budget"))) ? String(fd.get("budget")) : "$$") as MarsAsk["budget"];
+  const budget = (["free", "$", "$$", "$$$"].includes(String(fd.get("budget"))) ? String(fd.get("budget")) : "$$") as JunoAsk["budget"];
   const when = fd.get("when") === "day" ? "day" : "night";
-  const ask: MarsAsk = {
+  const ask: JunoAsk = {
     groupSize, budget, when,
     neighborhood: cleanName(fd.get("neighborhood")).toLowerCase().slice(0, 40),
     vibe: cleanName(fd.get("vibe")).toLowerCase().slice(0, 40),
@@ -555,6 +555,6 @@ export async function planWithMars(_prev: MarsState, fd: FormData): Promise<Mars
   };
   const day = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const [lists, popular] = await Promise.all([store.lists(), store.popular(day(new Date(Date.now() - 60 * 86400_000)), day(new Date()), "place")]);
-  const pick = await askMars(ask, lists.flatMap((l) => l.places), popular);
+  const pick = await askJuno(ask, lists.flatMap((l) => l.places), popular);
   return { pick };
 }

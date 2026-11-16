@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { LinkPlanFlow } from "@/components/app/LinkPlanFlow";
 import Link from "next/link";
-import { MarsMascot } from "@/components/app/MarsMascot";
+import { JunoMascot } from "@/components/app/JunoMascot";
 import { NewPlanForm } from "@/components/app/NewPlanForm";
 
 /** The "+" screen: the usual form first, then "saw it on tiktok or instagram?" below it.
@@ -20,10 +20,10 @@ export function NewPlanScreen({ initialKind, initialPlace = "", initialNeighborh
     <>
       {hasDraft ? null : (
         <>
-          <Link href="/app/mars" className="flex items-center gap-3 rounded-[20px] bg-ink-2 p-3 pr-5 ring-1 ring-line ring-inset hover:ring-lavender/50">
-            <MarsMascot className="h-14 w-14 shrink-0" />
+          <Link href="/app/juno" className="flex items-center gap-3 rounded-[20px] bg-ink-2 p-3 pr-5 ring-1 ring-line ring-inset hover:ring-lavender/50">
+            <JunoMascot className="h-14 w-14 shrink-0" />
             <span className="flex flex-1 flex-col">
-              <span className="display text-[1.3rem]">can&apos;t decide? ask mars.</span>
+              <span className="display text-[1.3rem]">can&apos;t decide? ask juno.</span>
               <span className="text-[13px] text-muted">your group, budget and mood, one plan back.</span>
             </span>
             <span aria-hidden="true" className="text-lavender">→</span>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { OrbitDial } from "@/components/OrbitDial";
 import { KindIcon } from "@/components/app/KindIcon";
-import { MarsMascot } from "@/components/app/MarsMascot";
+import { JunoMascot } from "@/components/app/JunoMascot";
 import { PlanCard } from "@/components/app/PlanCard";
 import { KINDS, TIME_ZONE, formatWhen } from "@/lib/app/kinds";
 import { rankPlans } from "@/lib/app/rank";
@@ -81,10 +81,10 @@ export default async function PlansHome({ searchParams }: { searchParams: Promis
       ) : null}
 
       <div className="grid grid-cols-2 gap-3">
-        <Link href="/app/mars" className="flex items-center gap-2 rounded-[18px] bg-ink-2 p-2.5 pr-3 ring-1 ring-line ring-inset hover:ring-lavender/50">
-          <MarsMascot className="h-11 w-11 shrink-0" />
+        <Link href="/app/juno" className="flex items-center gap-2 rounded-[18px] bg-ink-2 p-2.5 pr-3 ring-1 ring-line ring-inset hover:ring-lavender/50">
+          <JunoMascot className="h-11 w-11 shrink-0" />
           <span className="flex flex-col leading-tight">
-            <span className="display text-[1.15rem]">ask mars</span>
+            <span className="display text-[1.15rem]">ask juno</span>
             <span className="text-[12px] text-muted">plan for your group</span>
           </span>
         </Link>

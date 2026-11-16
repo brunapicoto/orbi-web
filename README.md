@@ -35,7 +35,7 @@ An installable web app (add to home screen) where people post plans and RSVP bli
 - **check-in:** names show only after you check in at the door (from an hour before the plan). the host is always anonymous: people see "someone with N mutuals is hosting".
 - **memories:** your network and the networks of everyone tagged see them; tagged people accept, accept blurred, or decline; people who were there rate the experience 1-5, anonymously (shown from 3 people); browse by place, person (never rated), mood, neighborhood; "what's popular" between two dates.
 - **your lists** (`/app/lists`): private lists of places; add by hand, or import from a TikTok/Reel (caption, cover, optional video stills) or pasted notes.
-- **mars** (`/app/mars`): a little astronaut planner. group size, budget, neighborhood, day or night, vibe: one plan back from your lists and what's popular, ready to post. Uses `ANTHROPIC_API_KEY`; without it, a simple pick from your lists.
+- **juno** (`/app/juno`): a little astronaut planner. group size, budget, neighborhood, day or night, vibe: one plan back from your lists and what's popular, ready to post. Uses `ANTHROPIC_API_KEY`; without it, a simple pick from your lists.
 - **you / settings:** photo (only your orbit sees it), a line about you, blocking (quiet, both ways), leave orbi (deletes the account).
 
 The privacy rules are enforced in the database (`supabase/app.sql`), not just in the UI.

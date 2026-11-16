@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ListsClient } from "@/components/app/ListsClient";
-import { MarsMascot } from "@/components/app/MarsMascot";
+import { JunoMascot } from "@/components/app/JunoMascot";
 import { requireMe } from "@/lib/app/session";
 
 export const dynamic = "force-dynamic";
@@ -17,10 +17,10 @@ export default async function Lists() {
         <p className="text-[16px] text-muted">coffee shops, bars, restaurants, parks, hidden gems. save them by hand, or bring them over from tiktok, instagram or your notes.</p>
       </header>
       <ListsClient lists={lists} />
-      <Link href="/app/mars" className="flex items-center gap-4 rounded-[22px] bg-ink-2 p-4 ring-1 ring-line ring-inset hover:ring-lavender/50">
-        <MarsMascot className="h-16 w-16 shrink-0" />
+      <Link href="/app/juno" className="flex items-center gap-4 rounded-[22px] bg-ink-2 p-4 ring-1 ring-line ring-inset hover:ring-lavender/50">
+        <JunoMascot className="h-16 w-16 shrink-0" />
         <span className="flex flex-col">
-          <span className="display text-[1.4rem]">can&apos;t decide? ask mars.</span>
+          <span className="display text-[1.4rem]">can&apos;t decide? ask juno.</span>
           <span className="text-[14px] text-muted">it turns your lists into a plan for your group.</span>
         </span>
       </Link>

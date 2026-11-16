@@ -25,8 +25,8 @@ const ITEMS = [
     b: "the places you save are only yours. nobody else sees your lists.",
   },
   {
-    t: "mars, the planner",
-    b: "when you ask mars for a plan, your group size, budget, neighborhood and mood, your saved places and the places popular in your network are sent to claude to suggest one plan. never who went anywhere.",
+    t: "juno, the planner",
+    b: "when you ask juno for a plan, your group size, budget, neighborhood and mood, your saved places and the places popular in your network are sent to claude to suggest one plan. never who went anywhere.",
   },
   {
     t: "the map",

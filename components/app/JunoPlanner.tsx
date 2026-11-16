@@ -1,8 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { planWithMars, type MarsState } from "@/app/app/actions";
-import { MarsMascot } from "@/components/app/MarsMascot";
+import { planWithJuno, type JunoState } from "@/app/app/actions";
+import { JunoMascot } from "@/components/app/JunoMascot";
 import { NewPlanForm } from "@/components/app/NewPlanForm";
 import { formatWhen } from "@/lib/app/kinds";
 
@@ -10,9 +10,9 @@ const VIBES = ["chill", "active", "food", "culture", "celebrate", "outdoors", "l
 const chip = "mono flex min-h-11 shrink-0 items-center rounded-full border border-line px-4 text-[13px] text-bone peer-checked:border-lavender peer-checked:bg-lavender peer-checked:text-ink peer-focus-visible:ring-2 peer-focus-visible:ring-lavender";
 const field = "w-full rounded-2xl border border-line bg-ink-2 px-4 py-3.5 text-[16px] text-bone placeholder:text-muted-2 outline-none focus-visible:border-lavender focus-visible:ring-2 focus-visible:ring-lavender";
 
-/** Mars: group, budget, neighborhood, the kind of day or night. One plan back, ready to post. */
-export function MarsPlanner() {
-  const [state, action, pending] = useActionState<MarsState, FormData>(planWithMars, {});
+/** Juno: group, budget, neighborhood, the kind of day or night. One plan back, ready to post. */
+export function JunoPlanner() {
+  const [state, action, pending] = useActionState<JunoState, FormData>(planWithJuno, {});
   const [size, setSize] = useState(4);
   const [budget, setBudget] = useState("$$");
   const [when, setWhen] = useState<"day" | "night">("night");
@@ -25,7 +25,7 @@ export function MarsPlanner() {
   if (pick && posting) {
     return (
       <div className="flex flex-col gap-6">
-        <button type="button" onClick={() => setPosting(false)} className="mono link-draw self-start text-muted-2">← back to mars</button>
+        <button type="button" onClick={() => setPosting(false)} className="mono link-draw self-start text-muted-2">← back to juno</button>
         <NewPlanForm draft={pick} initialNote={pick.note} initialOccasion={pick.occasion ?? ""} />
       </div>
     );
@@ -34,16 +34,16 @@ export function MarsPlanner() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-end gap-4">
-        <MarsMascot className="h-28 w-28 shrink-0" wave={!pending} />
+        <JunoMascot className="h-28 w-28 shrink-0" wave={!pending} />
         <div className="relative mb-3 rounded-[20px] rounded-bl-md bg-bone px-4 py-3 text-ink">
           <p className="display text-[1.35rem] leading-tight">
-            {pending ? "looking at your lists…" : pick ? "here's one for you." : "hi, i'm mars. tell me about the group."}
+            {pending ? "looking at your lists…" : pick ? "here's one for you." : "hi, i'm juno. what's the vibe?"}
           </p>
         </div>
       </div>
 
       {pick ? (
-        <section aria-label="mars's plan" className="flex flex-col gap-4 rounded-[24px] bg-ink-2 p-6 ring-1 ring-line ring-inset">
+        <section aria-label="juno's plan" className="flex flex-col gap-4 rounded-[24px] bg-ink-2 p-6 ring-1 ring-line ring-inset">
           <p className="mono text-[11px] uppercase tracking-widest text-muted-2">{pick.fromYourLists ? "from your lists" : "a suggestion"}{pick.occasion ? ` · ${pick.occasion}` : ""}</p>
           <h2 className="display text-[2.2rem]">{pick.title}</h2>
           <p className="text-muted">
@@ -54,14 +54,14 @@ export function MarsPlanner() {
           <p className="text-[15px] text-bone">{pick.why}</p>
           <div className="flex flex-wrap gap-2 pt-2">
             <button type="button" onClick={() => setPosting(true)} className="mono min-h-12 rounded-full bg-bone px-6 text-[14px] text-ink hover:bg-lavender">make it a plan</button>
-            <button type="submit" form="mars-form" disabled={pending} className="mono min-h-12 rounded-full border border-line px-6 text-[14px] text-bone hover:border-lavender disabled:opacity-60">
+            <button type="submit" form="juno-form" disabled={pending} className="mono min-h-12 rounded-full border border-line px-6 text-[14px] text-bone hover:border-lavender disabled:opacity-60">
               {pending ? "…" : "another idea"}
             </button>
           </div>
         </section>
       ) : null}
 
-      <form id="mars-form" action={action} className="flex flex-col gap-6">
+      <form id="juno-form" action={action} className="flex flex-col gap-6">
         <fieldset className="flex flex-col gap-3">
           <legend className="mono mb-2 text-muted-2">how many of you</legend>
           <div className="flex items-center gap-3">
@@ -115,10 +115,10 @@ export function MarsPlanner() {
         {state.error ? <p role="alert" className="mono text-lavender">{state.error}</p> : null}
         {!pick ? (
           <button type="submit" disabled={pending} className="mono min-h-14 rounded-full bg-bone px-8 text-[15px] text-ink hover:bg-lavender disabled:opacity-60">
-            {pending ? "mars is thinking…" : "plan it, mars"}
+            {pending ? "juno is thinking…" : "plan it, juno"}
           </button>
         ) : null}
-        <p className="text-[13px] text-muted-2">mars uses your lists and the places that are popular in your network. it never sees who went, and it never plans around specific people.</p>
+        <p className="text-[13px] text-muted-2">juno uses your lists and the places that are popular in your network. it never sees who went, and it never plans around specific people.</p>
       </form>
     </div>
   );

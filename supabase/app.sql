@@ -1109,7 +1109,7 @@ create policy "avatars upload" on storage.objects for insert to authenticated
 
 -- ---------------------------------------------------------------- your lists (private)
 -- Places you want to remember or try: coffee shops, bars, restaurants, parks, hidden gems.
--- Only you see your lists. Mars (the planner) can use them to suggest plans, for you only.
+-- Only you see your lists. Juno (the planner) can use them to suggest plans, for you only.
 create table if not exists public.lists (
   id uuid primary key default gen_random_uuid(),
   owner uuid not null default auth.uid() references public.profiles (id) on delete cascade,

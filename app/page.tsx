@@ -94,7 +94,7 @@ const FAQ = [
   },
   {
     q: "can orbi help us decide?",
-    a: "Yes. Mars, a little astronaut planner, suggests one plan for your group from your budget, your neighborhood and the kind of day or night you want. It uses your saved places and what's popular in your network.",
+    a: "Yes. Juno, a little astronaut planner named after the NASA probe orbiting Jupiter, suggests one plan for your group from your budget, your neighborhood and the kind of day or night you want. It uses your saved places and what's popular in your network.",
   },
   {
     q: "can i save places for later?",
