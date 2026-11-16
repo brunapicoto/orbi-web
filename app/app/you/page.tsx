@@ -48,6 +48,7 @@ export default async function You() {
           <Row href="/app?show=going" label="upcoming" value={String(upcoming)} />
           <Row href="/app?show=going" label="hosting" value={String(hosting)} />
           <Row href="/app/memories" label="past" value={String(went)} />
+          <Row href="/app/lists" label="your lists" value="places worth a plan" />
         </ul>
       </section>
 

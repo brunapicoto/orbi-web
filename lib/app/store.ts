@@ -1,7 +1,8 @@
 import "server-only";
+import type { PlaceCategory as SavedPlaceCategory } from "@/lib/app/types";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
 import { demoStore } from "@/lib/app/demo";
-import type { ExperienceSummary, Me, Popular, ProfileEdit, PlanTeaser, MemoryInvite, MemoryView, NewMemory, NewPlan, OrbitState, Prefs, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
+import type { ExperienceSummary, NewPlace, PlaceList, Me, Popular, ProfileEdit, PlanTeaser, MemoryInvite, MemoryView, NewMemory, NewPlan, OrbitState, Prefs, Person, Photo, PlanSignal, PlanStatus, PlanView } from "@/lib/app/types";
 
 /** Everything the app reads and writes. Two implementations: Supabase, or demo data. */
 export interface Store {
@@ -40,6 +41,11 @@ export interface Store {
   unblock(userId: string): Promise<void>;
   /** leave orbi: deletes the account */
   deleteMe(): Promise<void>;
+  lists(): Promise<PlaceList[]>;
+  createList(name: string): Promise<string>;
+  deleteList(id: string): Promise<void>;
+  addPlaces(listId: string, places: NewPlace[]): Promise<number>;
+  deletePlace(id: string): Promise<void>;
   savePrefs(p: Prefs): Promise<void>;
   keepInOrbit(id: string, target: string): Promise<"picked" | "connected">;
   dropPick(id: string, target: string): Promise<void>;
@@ -270,6 +276,39 @@ async function supabaseStore(): Promise<Store> {
     },
     async unblock(userId) {
       const { error } = await sb.rpc("unblock_person", { target: userId });
+      if (error) throw error;
+    },
+    async lists() {
+      const { data: ls } = await sb.from("lists").select("id, name, created_at").order("created_at");
+      if (!ls?.length) return [];
+      const { data: ps } = await sb.from("list_places").select("id, list_id, name, neighborhood, category, note, source_url, created_at").in("list_id", ls.map((l) => l.id)).order("created_at", { ascending: false });
+      return ls.map((l) => ({
+        id: l.id as string, name: l.name as string,
+        places: (ps ?? []).filter((p) => p.list_id === l.id).map((p) => ({
+          id: p.id as string, listId: p.list_id as string, name: p.name as string, neighborhood: (p.neighborhood as string | null) ?? null,
+          category: p.category as SavedPlaceCategory, note: (p.note as string | null) ?? null, sourceUrl: (p.source_url as string | null) ?? null,
+        })),
+      }));
+    },
+    async createList(name) {
+      const { data, error } = await sb.from("lists").insert({ name }).select("id").single();
+      if (error) throw error;
+      return data.id as string;
+    },
+    async deleteList(id) {
+      const { error } = await sb.from("lists").delete().eq("id", id);
+      if (error) throw error;
+    },
+    async addPlaces(listId, places) {
+      if (!places.length) return 0;
+      const { error } = await sb.from("list_places").insert(places.map((p) => ({
+        list_id: listId, name: p.name, neighborhood: p.neighborhood || null, category: p.category, note: p.note || null, source_url: p.sourceUrl || null,
+      })));
+      if (error) throw error;
+      return places.length;
+    },
+    async deletePlace(id) {
+      const { error } = await sb.from("list_places").delete().eq("id", id);
       if (error) throw error;
     },
     async deleteMe() {

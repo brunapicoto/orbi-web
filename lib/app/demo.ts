@@ -12,6 +12,7 @@ type DemoPlan = NewPlan & { id: string; hostId: string; rsvps: string[]; photos:
 type DemoState = {
   me: { id: string; firstName: string | null; inviteCode: string; photoUrl: string | null; bio: string | null; neighborhood: string | null; appearInPicks: boolean; since: string };
   blocked: string[];
+  lists: import("@/lib/app/types").PlaceList[];
   people: Record<string, string>;
   connections: string[];
   mutualsWithMe: Record<string, number>;
@@ -36,6 +37,17 @@ function seed(): DemoState {
   return {
     me: { id: ME, firstName: "alex", inviteCode: "demo4orbi", photoUrl: null, bio: "always up for a wednesday dinner. will travel for handmade pasta.", neighborhood: "carroll gardens", appearInPicks: true, since: new Date(Date.now() - 150 * 86400_000).toISOString() },
     blocked: [],
+    lists: [
+      { id: "l-try", name: "want to try", places: [
+        { id: "lp-1", listId: "l-try", name: "Sey Coffee", neighborhood: "bushwick", category: "coffee", note: "the light roast everyone talks about", sourceUrl: null },
+        { id: "lp-2", listId: "l-try", name: "Attaboy", neighborhood: "lower east side", category: "bar", note: "no menu, tell them a mood", sourceUrl: null },
+        { id: "lp-3", listId: "l-try", name: "Little Island", neighborhood: "meatpacking", category: "park", note: null, sourceUrl: null },
+        { id: "lp-4", listId: "l-try", name: "Dumbo House", neighborhood: "dumbo", category: "gem", note: "from a tiktok", sourceUrl: "https://www.tiktok.com/@nyc/video/1" },
+      ] },
+      { id: "l-date", name: "for a birthday", places: [
+        { id: "lp-5", listId: "l-date", name: "Don Angie", neighborhood: "west village", category: "restaurant", note: "pinwheel lasagna", sourceUrl: null },
+      ] },
+    ],
     people: { lena: "Lena", marcus: "Marcus", iris: "Iris", theo: "Theo", sofia: "Sofia", naomi: "Naomi", eva: "Eva" },
     connections: ["lena", "marcus", "iris", "theo", "sofia", "naomi"],
     // friends each person has in common with you (example numbers)
@@ -310,6 +322,29 @@ export async function demoStore(): Promise<Store> {
     },
     async deleteMe() {
       g.__orbiDemo = seed();
+    },
+    async lists() {
+      return s.lists;
+    },
+    async createList(name) {
+      const id = `l-${Math.random().toString(36).slice(2, 8)}`;
+      s.lists.push({ id, name, places: [] });
+      return id;
+    },
+    async deleteList(id) {
+      s.lists = s.lists.filter((l) => l.id !== id);
+    },
+    async addPlaces(listId, places) {
+      const l = s.lists.find((x) => x.id === listId);
+      if (!l) throw new Error("not found");
+      l.places = [
+        ...places.map((p) => ({ id: `lp-${Math.random().toString(36).slice(2, 8)}`, listId, name: p.name, neighborhood: p.neighborhood ?? null, category: p.category, note: p.note ?? null, sourceUrl: p.sourceUrl ?? null })),
+        ...l.places,
+      ];
+      return places.length;
+    },
+    async deletePlace(id) {
+      for (const l of s.lists) l.places = l.places.filter((p) => p.id !== id);
     },
     async rateMemory(id, stars) {
       const m = s.memories.find((x) => x.id === id);

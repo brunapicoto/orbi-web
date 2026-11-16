@@ -2,11 +2,13 @@
 
 import { useCallback, useRef, useState } from "react";
 import { LinkPlanFlow } from "@/components/app/LinkPlanFlow";
+import Link from "next/link";
+import { MarsMascot } from "@/components/app/MarsMascot";
 import { NewPlanForm } from "@/components/app/NewPlanForm";
 
 /** The "+" screen: the usual form first, then "saw it on tiktok or instagram?" below it.
  *  Once a link turns into a draft, only the draft form shows, so there's one form on screen. */
-export function NewPlanScreen({ initialKind }: { initialKind: string }) {
+export function NewPlanScreen({ initialKind, initialPlace = "", initialNeighborhood = "" }: { initialKind: string; initialPlace?: string; initialNeighborhood?: string }) {
   const [hasDraft, setHasDraft] = useState(false);
   const linkRef = useRef<HTMLElement>(null);
   const onDraft = useCallback((has: boolean) => {
@@ -16,7 +18,19 @@ export function NewPlanScreen({ initialKind }: { initialKind: string }) {
 
   return (
     <>
-      {hasDraft ? null : <NewPlanForm initialKind={initialKind} />}
+      {hasDraft ? null : (
+        <>
+          <Link href="/app/mars" className="flex items-center gap-3 rounded-[20px] bg-ink-2 p-3 pr-5 ring-1 ring-line ring-inset hover:ring-lavender/50">
+            <MarsMascot className="h-14 w-14 shrink-0" />
+            <span className="flex flex-1 flex-col">
+              <span className="display text-[1.3rem]">can&apos;t decide? ask mars.</span>
+              <span className="text-[13px] text-muted">your group, budget and mood, one plan back.</span>
+            </span>
+            <span aria-hidden="true" className="text-lavender">→</span>
+          </Link>
+          <NewPlanForm initialKind={initialKind} initialPlace={initialPlace} initialNeighborhood={initialNeighborhood} />
+        </>
+      )}
       <section ref={linkRef} aria-labelledby="from-link-title" className={`flex flex-col gap-6 ${hasDraft ? "" : "border-t border-line pt-10"}`}>
         <header className="flex flex-col gap-2">
           <p className="mono text-muted-2">or from a link</p>

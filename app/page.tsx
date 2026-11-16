@@ -93,6 +93,14 @@ const FAQ = [
     a: "It becomes a memory, with the group's photos. Tag who was there: they choose to accept, accept with their face blurred, or decline. Your network and the networks of everyone tagged can see it. No likes, no comments.",
   },
   {
+    q: "can orbi help us decide?",
+    a: "Yes. Mars, a little astronaut planner, suggests one plan for your group from your budget, your neighborhood and the kind of day or night you want. It uses your saved places and what's popular in your network.",
+  },
+  {
+    q: "can i save places for later?",
+    a: "Yes. Keep your own lists of coffee shops, bars, restaurants, parks and hidden gems, or bring them over from TikTok, Instagram or your notes. Only you see them.",
+  },
+  {
     q: "can people be rated?",
     a: "Never. Only the people who were there rate the experience, 1 to 5, anonymously. A score shows once 3 of them have rated. Look up a place or an activity to see how it went across your network.",
   },

@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { geocode, parseFrames, platformOf, readLink, suggestPlan, type LinkSource, type PlanDraft } from "@/lib/app/fromLink";
+import { askMars, extractPlaces, placesFromLink, type MarsAsk, type MarsPick } from "@/lib/app/mars";
+import type { NewPlace } from "@/lib/app/types";
 import { KIND_IDS, TOPIC_IDS } from "@/lib/app/kinds";
 import { friendly, getStore } from "@/lib/app/store";
 import { supabaseConfigured, supabaseServer } from "@/lib/supabase/server";
@@ -453,4 +455,106 @@ export async function uploadMemoryPhoto(_prev: FormState, fd: FormData): Promise
   }
   revalidatePath(`/app/memories/${id}`);
   return { ok: true };
+}
+
+// ---------------------------------------------------------------- your lists, and mars
+
+const PLACE_CAT_IDS = ["coffee", "bar", "restaurant", "park", "gem", "activity", "other"];
+
+export async function createList(_prev: FormState, fd: FormData): Promise<FormState> {
+  const name = cleanName(fd.get("name")).toLowerCase();
+  if (!name) return { fieldErrors: { name: "name your list." } };
+  if (name.length > 40) return { fieldErrors: { name: "keep it under 40 characters." } };
+  const store = await getStore();
+  try {
+    const id = await store.createList(name);
+    revalidatePath("/app/lists");
+    return { ok: true, id };
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+}
+
+export async function deleteList(id: string) {
+  const store = await getStore();
+  await store.deleteList(id);
+  revalidatePath("/app/lists");
+}
+
+export async function deletePlace(id: string) {
+  const store = await getStore();
+  await store.deletePlace(id);
+  revalidatePath("/app/lists");
+}
+
+export type ImportState = { error?: string; places?: NewPlace[]; by?: "ai" | "basic"; needsCaption?: boolean };
+
+/** read places out of a tiktok/reel link (+ stills) or pasted notes. nothing is saved yet. */
+export async function importPlaces(_prev: ImportState, fd: FormData): Promise<ImportState> {
+  const store = await getStore();
+  if (!(await store.me())) return { error: "sign in first." };
+  const url = String(fd.get("url") ?? "").trim();
+  const text = String(fd.get("text") ?? "").trim().slice(0, 6000);
+  const frames = parseFrames(fd.getAll("frames").map(String));
+  if (url) {
+    if (!platformOf(url)) return { error: "paste a tiktok or instagram link (it starts with https://)." };
+    const src = await readLink(url, text);
+    if (!src.caption && !frames.length) return { needsCaption: true, error: "we couldn't read this video. add the video file, or paste its caption." };
+    const res = await placesFromLink(src, frames);
+    return res.places.length ? res : { error: "no specific place in this one. try another, or add it by hand." };
+  }
+  if (!text) return { error: "paste a link or your notes." };
+  const res = await extractPlaces(text);
+  return res.places.length ? res : { error: "we couldn't find places in that. one per line works best." };
+}
+
+/** save the places you picked to a list */
+export async function savePlaces(listId: string, places: NewPlace[]): Promise<FormState> {
+  const clean = places
+    .slice(0, 40)
+    .map((p) => ({
+      name: String(p.name ?? "").trim().slice(0, 80),
+      neighborhood: String(p.neighborhood ?? "").trim().toLowerCase().slice(0, 40) || null,
+      category: (PLACE_CAT_IDS.includes(p.category) ? p.category : "other") as NewPlace["category"],
+      note: String(p.note ?? "").trim().slice(0, 200) || null,
+      sourceUrl: p.sourceUrl && platformOf(p.sourceUrl) ? p.sourceUrl.slice(0, 500) : null,
+    }))
+    .filter((p) => p.name);
+  if (!clean.length) return { error: "pick at least one place." };
+  const store = await getStore();
+  try {
+    await store.addPlaces(listId, clean);
+  } catch (e) {
+    return { error: friendly(e) };
+  }
+  revalidatePath("/app/lists");
+  return { ok: true };
+}
+
+export async function addPlace(_prev: FormState, fd: FormData): Promise<FormState> {
+  const listId = String(fd.get("listId") ?? "");
+  const name = cleanName(fd.get("name"));
+  if (!name) return { fieldErrors: { name: "add the place's name." } };
+  return savePlaces(listId, [{ name, neighborhood: String(fd.get("neighborhood") ?? ""), category: String(fd.get("category") ?? "other") as NewPlace["category"], note: String(fd.get("note") ?? "") }]);
+}
+
+export type MarsState = { error?: string; pick?: MarsPick };
+
+/** ask mars for a plan: your group, budget, neighborhood and mood. uses your lists and what's popular. */
+export async function planWithMars(_prev: MarsState, fd: FormData): Promise<MarsState> {
+  const store = await getStore();
+  if (!(await store.me())) return { error: "sign in first." };
+  const groupSize = Math.min(12, Math.max(3, Number(fd.get("groupSize") ?? 4) || 4));
+  const budget = (["free", "$", "$$", "$$$"].includes(String(fd.get("budget"))) ? String(fd.get("budget")) : "$$") as MarsAsk["budget"];
+  const when = fd.get("when") === "day" ? "day" : "night";
+  const ask: MarsAsk = {
+    groupSize, budget, when,
+    neighborhood: cleanName(fd.get("neighborhood")).toLowerCase().slice(0, 40),
+    vibe: cleanName(fd.get("vibe")).toLowerCase().slice(0, 40),
+    extra: String(fd.get("extra") ?? "").trim().slice(0, 200),
+  };
+  const day = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const [lists, popular] = await Promise.all([store.lists(), store.popular(day(new Date(Date.now() - 60 * 86400_000)), day(new Date()), "place")]);
+  const pick = await askMars(ask, lists.flatMap((l) => l.places), popular);
+  return { pick };
 }

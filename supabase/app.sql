@@ -1106,3 +1106,35 @@ create policy "avatars read" on storage.objects for select to authenticated
 drop policy if exists "avatars upload" on storage.objects;
 create policy "avatars upload" on storage.objects for insert to authenticated
   with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ---------------------------------------------------------------- your lists (private)
+-- Places you want to remember or try: coffee shops, bars, restaurants, parks, hidden gems.
+-- Only you see your lists. Mars (the planner) can use them to suggest plans, for you only.
+create table if not exists public.lists (
+  id uuid primary key default gen_random_uuid(),
+  owner uuid not null default auth.uid() references public.profiles (id) on delete cascade,
+  name text not null check (char_length(btrim(name)) between 1 and 40),
+  created_at timestamptz not null default now()
+);
+create table if not exists public.list_places (
+  id uuid primary key default gen_random_uuid(),
+  list_id uuid not null references public.lists (id) on delete cascade,
+  name text not null check (char_length(btrim(name)) between 1 and 80),
+  neighborhood text check (neighborhood is null or char_length(neighborhood) <= 40),
+  category text not null default 'other' check (category in ('coffee', 'bar', 'restaurant', 'park', 'gem', 'activity', 'other')),
+  note text check (note is null or char_length(note) <= 200),
+  source_url text check (source_url is null or (char_length(source_url) <= 500 and source_url ~ '^https://')),
+  created_at timestamptz not null default now()
+);
+create index if not exists list_places_list_idx on public.list_places (list_id);
+alter table public.lists enable row level security;
+alter table public.list_places enable row level security;
+drop policy if exists lists_own on public.lists;
+create policy lists_own on public.lists for all to authenticated
+  using (owner = auth.uid()) with check (owner = auth.uid());
+drop policy if exists list_places_own on public.list_places;
+create policy list_places_own on public.list_places for all to authenticated
+  using (exists (select 1 from public.lists l where l.id = list_id and l.owner = auth.uid()))
+  with check (exists (select 1 from public.lists l where l.id = list_id and l.owner = auth.uid()));
+revoke all on public.lists, public.list_places from anon;
+grant select, insert, update, delete on public.lists, public.list_places to authenticated;

@@ -10,15 +10,23 @@ const ITEMS = [
   },
   {
     t: "who's going",
-    b: "nobody sees who else said yes, not even the host, until the plan starts. then only the people in it see the names.",
+    b: "nobody sees who else said yes, not even the host. names show only to people in the plan, after they check in at the door.",
   },
   {
     t: "the host",
-    b: "hidden by default. the host's first name shows on the link only if they turn it on. if you join from a link and aren't connected to the host yet, joining connects you two, and we tell you who before you say yes.",
+    b: "always anonymous. people see how many friends they share with the host, never a name. if you join from a link and aren't connected to the host yet, joining connects you two.",
   },
   {
     t: "plans from a video",
     b: "when you paste a tiktok or reel, we read its public caption and thumbnail and send the caption to claude (anthropic's ai) to suggest the place, price and a day. nothing is posted until you check it. places are looked up on openstreetmap.",
+  },
+  {
+    t: "your lists",
+    b: "the places you save are only yours. nobody else sees your lists.",
+  },
+  {
+    t: "mars, the planner",
+    b: "when you ask mars for a plan, your group size, budget, neighborhood and mood, your saved places and the places popular in your network are sent to claude to suggest one plan. never who went anywhere.",
   },
   {
     t: "the map",

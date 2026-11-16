@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { OrbitDial } from "@/components/OrbitDial";
 import { KindIcon } from "@/components/app/KindIcon";
+import { MarsMascot } from "@/components/app/MarsMascot";
 import { PlanCard } from "@/components/app/PlanCard";
 import { KINDS, TIME_ZONE, formatWhen } from "@/lib/app/kinds";
 import { rankPlans } from "@/lib/app/rank";
@@ -78,6 +79,23 @@ export default async function PlansHome({ searchParams }: { searchParams: Promis
           <span aria-hidden="true" className="text-[20px]">→</span>
         </Link>
       ) : null}
+
+      <div className="grid grid-cols-2 gap-3">
+        <Link href="/app/mars" className="flex items-center gap-2 rounded-[18px] bg-ink-2 p-2.5 pr-3 ring-1 ring-line ring-inset hover:ring-lavender/50">
+          <MarsMascot className="h-11 w-11 shrink-0" />
+          <span className="flex flex-col leading-tight">
+            <span className="display text-[1.15rem]">ask mars</span>
+            <span className="text-[12px] text-muted">plan for your group</span>
+          </span>
+        </Link>
+        <Link href="/app/lists" className="flex items-center gap-3 rounded-[18px] bg-ink-2 p-2.5 pl-4 pr-3 ring-1 ring-line ring-inset hover:ring-lavender/50">
+          <span className="display text-[1.8rem] text-lavender" aria-hidden="true">✦</span>
+          <span className="flex flex-col leading-tight">
+            <span className="display text-[1.15rem]">your lists</span>
+            <span className="text-[12px] text-muted">places worth a plan</span>
+          </span>
+        </Link>
+      </div>
 
       {showMine ? <Group title="happening now" plans={now} /> : null}
       {showMine ? <Group title="you're going" plans={mine} signals={signals} empty="nothing yet. save a spot below, or post one." /> : null}

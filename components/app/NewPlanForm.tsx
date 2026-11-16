@@ -25,18 +25,18 @@ function defaultWhen() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function NewPlanForm({ initialKind = "", initialPlace = "", draft, source }: {
-  initialKind?: string; initialPlace?: string; draft?: PlanDraft; source?: LinkSource;
+export function NewPlanForm({ initialKind = "", initialPlace = "", initialNeighborhood = "", initialNote = "", initialOccasion = "", draft, source }: {
+  initialKind?: string; initialPlace?: string; initialNeighborhood?: string; initialNote?: string; initialOccasion?: string; draft?: PlanDraft; source?: LinkSource;
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(createPlan, {});
   const [kind, setKind] = useState(draft?.kind ?? initialKind);
   // controlled, so what you typed survives a validation error (React resets uncontrolled fields after an action)
   const [place, setPlace] = useState(draft?.place ?? initialPlace);
   const [title, setTitle] = useState(draft?.title ?? "");
-  const [neighborhood, setNeighborhood] = useState(draft?.neighborhood ?? "");
+  const [neighborhood, setNeighborhood] = useState(draft?.neighborhood ?? initialNeighborhood);
   const [price, setPrice] = useState(draft?.priceLevel != null ? String(draft.priceLevel) : "");
   const [costNote, setCostNote] = useState("");
-  const [occasion, setOccasion] = useState("");
+  const [occasion, setOccasion] = useState(initialOccasion);
   const [pin, setPin] = useState<{ lat: number | null; lng: number | null }>({ lat: draft?.lat ?? null, lng: draft?.lng ?? null });
   const [mapOpen, setMapOpen] = useState(!!draft);
   const [searching, startSearch] = useTransition();
@@ -71,7 +71,7 @@ export function NewPlanForm({ initialKind = "", initialPlace = "", draft, source
     }, 900);
     return () => clearTimeout(t);
   }, [place, neighborhood]);
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState(initialNote);
   const [topic, setTopic] = useState("");
   // total group (you included) and spots opened to mutuals; the rest are friends you bring
   const [total, setTotal] = useState(4);

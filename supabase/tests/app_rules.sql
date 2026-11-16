@@ -443,6 +443,24 @@ select pg_temp.expect_fail($$select * from profiles$$, 'or read profiles');
 select pg_temp.expect_fail($$select * from plan_signal('11111111-0000-0000-0000-000000000005')$$, 'or get a trust signal');
 select pg_temp.expect_fail($$select * from preferences$$, 'or read anyone''s preferences');
 reset role;
+-- lists are private
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+insert into lists (id, name) values ('22222222-0000-0000-0000-000000000001', 'want to try');
+insert into list_places (list_id, name, neighborhood, category) values ('22222222-0000-0000-0000-000000000001', 'Via Carota', 'west village', 'restaurant');
+select pg_temp.check((select count(*) from list_places) = 1, 'Bia saves a place to her list');
+select pg_temp.expect_fail($$insert into list_places (list_id, name, category) values ('22222222-0000-0000-0000-000000000001', 'x', 'casino')$$, 'only known categories');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check((select count(*) from lists) + (select count(*) from list_places) = 0, 'Ana, her friend, sees none of it');
+select pg_temp.expect_fail($$insert into list_places (list_id, name) values ('22222222-0000-0000-0000-000000000001', 'sneaky')$$, 'and cannot add to it');
+update list_places set name = 'changed';
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check((select name from list_places) = 'Via Carota', 'or change it');
+reset role;
+set role anon;
+select pg_temp.expect_fail($$select * from lists$$, 'signed out, nothing');
+reset role;
+
 -- leaving orbi deletes everything that is yours
 insert into auth.users values ('00000000-0000-0000-0000-000000000012');
 set role authenticated;

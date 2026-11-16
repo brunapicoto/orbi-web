@@ -167,3 +167,21 @@ body {
 .leaflet-control-attribution a {
   color: #c9d2fa !important;
 }
+
+@keyframes mars-wave {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-18deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[mars-wave_1\.6s_ease-in-out_infinite\] { animation: none; }
+}
+
+/* fieldsets default to min-width: min-content, which lets sideways rows widen the page */
+fieldset {
+  min-width: 0;
+}
+
+/* visually hidden radios/checkboxes stay inside their chip, so sideways rows don't widen the page */
+label:has(> input.sr-only) {
+  position: relative;
+}

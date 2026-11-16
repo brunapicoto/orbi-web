@@ -30,7 +30,7 @@ export function parseFrames(values: string[]): Still[] {
 }
 
 /** The video's cover image, so Claude can see the place, the food, the sign on the door. */
-async function coverStill(url: string | null): Promise<Still | null> {
+export async function coverStill(url: string | null): Promise<Still | null> {
   if (!url) return null;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(6000), cache: "no-store" });
@@ -214,7 +214,7 @@ function basicDraft(caption: string): PlanDraft {
   };
 }
 
-function validLocal(v: string): string | null {
+export function validLocal(v: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return null;
   const t = Date.parse(`${v}:00Z`);
   const now = Date.now();
@@ -223,7 +223,7 @@ function validLocal(v: string): string | null {
 }
 
 /** a sensible next slot when the caption gives no day: next thursday 8pm for food, saturday 10am for sport... */
-function defaultStart(category: string): string {
+export function defaultStart(category: string): string {
   const [weekday, hour] = category === "sport" ? [6, 10] : category === "culture" ? [6, 14] : category === "study" ? [2, 14] : [4, 20];
   const nowNy = new Date(new Date().toLocaleString("en-US", { timeZone: TIME_ZONE }));
   const d = new Date(nowNy);

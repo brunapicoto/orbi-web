@@ -121,3 +121,18 @@ export type NewPlan = {
 
 /** After a plan: who you picked to keep in your orbit, and who you're already connected to. */
 export type OrbitState = { picked: string[]; connected: string[] };
+
+/** Your lists: private, only you see them */
+export const PLACE_CATEGORIES = [
+  { id: "coffee", label: "coffee" },
+  { id: "bar", label: "bars" },
+  { id: "restaurant", label: "restaurants" },
+  { id: "park", label: "parks" },
+  { id: "gem", label: "hidden gems" },
+  { id: "activity", label: "things to do" },
+  { id: "other", label: "other" },
+] as const;
+export type PlaceCategory = (typeof PLACE_CATEGORIES)[number]["id"];
+export type SavedPlace = { id: string; listId: string; name: string; neighborhood: string | null; category: PlaceCategory; note: string | null; sourceUrl: string | null };
+export type PlaceList = { id: string; name: string; places: SavedPlace[] };
+export type NewPlace = { name: string; neighborhood?: string | null; category: PlaceCategory; note?: string | null; sourceUrl?: string | null };

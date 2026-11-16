@@ -32,8 +32,14 @@ An installable web app (add to home screen) where people post plans and RSVP bli
 - **share link** (`/p/<slug>`): a public teaser with the count ("2 of 4 in", live), a small map and a WhatsApp preview image. Never who's in; the host's name only if they turn it on. Saying "i'm in" from it signs you in and, if you're not connected to the host yet, connects you first (the link works as the host's invite), so plans stay mutuals-only.
 - **map** (`/app/map`): your mutuals' plans and the ones you're in, pins by category, filters (category, when, price, status) shared by map and list; the list follows the visible area.
 
+- **check-in:** names show only after you check in at the door (from an hour before the plan). the host is always anonymous: people see "someone with N mutuals is hosting".
+- **memories:** your network and the networks of everyone tagged see them; tagged people accept, accept blurred, or decline; people who were there rate the experience 1-5, anonymously (shown from 3 people); browse by place, person (never rated), mood, neighborhood; "what's popular" between two dates.
+- **your lists** (`/app/lists`): private lists of places; add by hand, or import from a TikTok/Reel (caption, cover, optional video stills) or pasted notes.
+- **mars** (`/app/mars`): a little astronaut planner. group size, budget, neighborhood, day or night, vibe: one plan back from your lists and what's popular, ready to post. Uses `ANTHROPIC_API_KEY`; without it, a simple pick from your lists.
+- **you / settings:** photo (only your orbit sees it), a line about you, blocking (quiet, both ways), leave orbi (deletes the account).
+
 The privacy rules are enforced in the database (`supabase/app.sql`), not just in the UI.
-`supabase/tests/` checks them against a local Postgres (113 checks).
+`supabase/tests/` checks them against a local Postgres (184 checks).
 
 **Demo mode:** without Supabase keys, `/app` runs on example data held in memory, with a banner that says so.
 
