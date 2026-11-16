@@ -24,7 +24,7 @@ export function NewPlanScreen({ initialKind, initialPlace = "", initialNeighborh
             <JunoMascot className="h-14 w-14 shrink-0" />
             <span className="flex flex-1 flex-col">
               <span className="display text-[1.3rem]">can&apos;t decide? ask juno.</span>
-              <span className="text-[13px] text-muted">your group, budget and mood, one plan back.</span>
+              <span className="text-[13px] text-muted">your budget and the vibe, one plan back.</span>
             </span>
             <span aria-hidden="true" className="text-lavender">→</span>
           </Link>

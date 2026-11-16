@@ -80,22 +80,25 @@ export default async function PlansHome({ searchParams }: { searchParams: Promis
         </Link>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3">
-        <Link href="/app/juno" className="flex items-center gap-2 rounded-[18px] bg-ink-2 p-2.5 pr-3 ring-1 ring-line ring-inset hover:ring-lavender/50">
-          <JunoMascot className="h-11 w-11 shrink-0" />
-          <span className="flex flex-col leading-tight">
-            <span className="display text-[1.15rem]">ask juno</span>
-            <span className="text-[12px] text-muted">plan for your group</span>
-          </span>
+      <nav aria-label="shortcuts" className="grid grid-cols-3 gap-2.5">
+        <Link href="/app/juno" className="flex flex-col items-start gap-1.5 rounded-[18px] bg-ink-2 p-3 ring-1 ring-line ring-inset hover:ring-lavender/50">
+          <JunoMascot className="h-10 w-10" />
+          <span className="display text-[1.1rem] leading-tight">ask juno</span>
+          <span className="text-[11.5px] leading-snug text-muted">one plan, from your lists</span>
         </Link>
-        <Link href="/app/lists" className="flex items-center gap-3 rounded-[18px] bg-ink-2 p-2.5 pl-4 pr-3 ring-1 ring-line ring-inset hover:ring-lavender/50">
-          <span className="display text-[1.8rem] text-lavender" aria-hidden="true">✦</span>
-          <span className="flex flex-col leading-tight">
-            <span className="display text-[1.15rem]">your lists</span>
-            <span className="text-[12px] text-muted">places worth a plan</span>
+        <Link href="/app/new/link" className="flex flex-col items-start gap-1.5 rounded-[18px] bg-ink-2 p-3 ring-1 ring-line ring-inset hover:ring-lavender/50">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-wine text-bone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor"><path d="M9 6.5v11l9-5.5z" /></svg>
           </span>
+          <span className="display text-[1.1rem] leading-tight">paste a link</span>
+          <span className="text-[11.5px] leading-snug text-muted">from tiktok or reels</span>
         </Link>
-      </div>
+        <Link href="/app/lists" className="flex flex-col items-start gap-1.5 rounded-[18px] bg-ink-2 p-3 ring-1 ring-line ring-inset hover:ring-lavender/50">
+          <span className="display flex h-10 w-10 items-center justify-center text-[1.9rem] text-lavender" aria-hidden="true">✦</span>
+          <span className="display text-[1.1rem] leading-tight">your lists</span>
+          <span className="text-[11.5px] leading-snug text-muted">places worth a plan</span>
+        </Link>
+      </nav>
 
       {showMine ? <Group title="happening now" plans={now} /> : null}
       {showMine ? <Group title="you're going" plans={mine} signals={signals} empty="nothing yet. save a spot below, or post one." /> : null}

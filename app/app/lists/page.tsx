@@ -21,7 +21,7 @@ export default async function Lists() {
         <JunoMascot className="h-16 w-16 shrink-0" />
         <span className="flex flex-col">
           <span className="display text-[1.4rem]">can&apos;t decide? ask juno.</span>
-          <span className="text-[14px] text-muted">it turns your lists into a plan for your group.</span>
+          <span className="text-[14px] text-muted">it turns your lists into a plan.</span>
         </span>
       </Link>
     </div>
