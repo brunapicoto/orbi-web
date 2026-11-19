@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { NAV_LINKS } from "@/lib/site";
 
 /** Floating nav card. */
@@ -11,9 +12,9 @@ export function Nav() {
         aria-label="main"
         className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 rounded-2xl bg-ink/85 px-5 shadow-[0_20px_60px_rgba(14,12,13,0.35)] ring-1 ring-line backdrop-blur-md md:h-[72px] md:px-7"
       >
-        <a href="#top" className="display text-[26px] tracking-[-0.04em] text-lavender">
+        <Link href="/#top" className="display text-[26px] tracking-[-0.04em] text-lavender">
           orbi
-        </a>
+        </Link>
         <ul className="ml-auto hidden items-center gap-7 sm:flex">
           {NAV_LINKS.map((l) => (
             <li key={l.href}>
@@ -23,12 +24,12 @@ export function Nav() {
             </li>
           ))}
         </ul>
-        <a
-          href="#waitlist"
+        <Link
+          href="/#waitlist"
           className="mono ml-auto inline-flex min-h-11 items-center rounded-full bg-bone px-5 text-[13px] text-bordeaux transition-colors hover:bg-lavender hover:text-ink sm:ml-0"
         >
           join the waitlist
-        </a>
+        </Link>
       </nav>
     </header>
   );

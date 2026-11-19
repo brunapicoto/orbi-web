@@ -3,6 +3,8 @@ import { signOut } from "@/app/app/actions";
 import { NameForm } from "@/components/app/Forms";
 import { AvatarPicker, ProfileForm } from "@/components/app/ProfileBits";
 import { requireMe } from "@/lib/app/session";
+import { TwoWeeks, type CalDay, type CalPlan } from "@/components/app/TwoWeeks";
+import { TIME_ZONE, formatWhen } from "@/lib/app/kinds";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,25 @@ export default async function You() {
   const hosted = plans.filter((p) => p.isHost).length;
   const upcoming = plans.filter((p) => p.joined && (p.status === "open" || p.status === "on")).length;
   const hosting = plans.filter((p) => p.isHost && (p.status === "open" || p.status === "on")).length;
+  // the next two weeks, in new york time
+  const nyDay = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: TIME_ZONE });
+  const days: CalDay[] = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(Date.now() + i * 86400_000);
+    return {
+      day: nyDay(d),
+      weekday: d.toLocaleDateString("en-US", { weekday: "short", timeZone: TIME_ZONE }).toLowerCase(),
+      date: Number(d.toLocaleDateString("en-US", { day: "numeric", timeZone: TIME_ZONE })),
+      month: d.toLocaleDateString("en-US", { month: "short", timeZone: TIME_ZONE }).toLowerCase(),
+      today: i === 0,
+    };
+  });
+  const inRange = new Set(days.map((d) => d.day));
+  const calPlans: CalPlan[] = plans
+    .filter((p) => (p.isHost || p.joined) && p.status !== "past" && inRange.has(nyDay(new Date(p.startsAt))))
+    .map((p) => ({
+      id: p.id, day: nyDay(new Date(p.startsAt)), time: formatWhen(p.startsAt).split(" · ")[1],
+      title: (p.title || p.place).split(",")[0].toLowerCase(), kind: p.kind, hosting: p.isHost,
+    }));
   const since = me.since ? new Date(me.since).toLocaleDateString("en-US", { month: "long", year: "numeric" }).toLowerCase() : null;
 
   return (
@@ -43,10 +64,10 @@ export default async function You() {
       {me.bio ? <p className="display rounded-[20px] bg-ink-2 px-5 py-4 text-[1.3rem] leading-snug ring-1 ring-line ring-inset">&ldquo;{me.bio}&rdquo;</p> : null}
 
       <section className="flex flex-col gap-3" aria-labelledby="plans-title">
-        <h2 id="plans-title" className="mono text-[11px] uppercase tracking-widest text-muted-2">your plans</h2>
+        <h2 id="plans-title" className="mono text-[11px] uppercase tracking-widest text-muted-2">your next two weeks</h2>
+        <TwoWeeks days={days} plans={calPlans} />
         <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-[20px] bg-ink-2 ring-1 ring-line ring-inset">
-          <Row href="/app?show=going" label="upcoming" value={String(upcoming)} />
-          <Row href="/app?show=going" label="hosting" value={String(hosting)} />
+          <Row href="/app?show=going" label="coming up" value={`${upcoming} going · ${hosting} hosting`} />
           <Row href="/app/memories" label="past" value={String(went)} />
           <Row href="/app/lists" label="your lists" value="places worth a plan" />
         </ul>
